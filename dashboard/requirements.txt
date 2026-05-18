@@ -1,0 +1,4 @@
+pyserial
+pyqtgraph
+PyQt5
+numpy
