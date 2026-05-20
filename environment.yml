@@ -1,0 +1,18 @@
+name: snn-pm
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - numpy
+  - pandas
+  - scikit-learn
+  - matplotlib
+  - jupyter
+  - pyserial
+  - pip:
+      - torch --index-url https://download.pytorch.org/whl/cu124
+      - snntorch
