@@ -1,6 +1,6 @@
 # PlatformIO
+.pio/
 firmware/.pio/
-firmware/.vscode/
 
 # Python
 __pycache__/
@@ -24,3 +24,4 @@ training/data/*.csv
 # OS
 .DS_Store
 Thumbs.db
+.CLAUDE.md

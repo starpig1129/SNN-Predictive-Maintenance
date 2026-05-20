@@ -1,0 +1,13 @@
+{
+  "folders": [
+    {
+      "name": "SNN-Predictive-Maintenance",
+      "path": "."
+    },
+    {
+      "name": "firmware (PlatformIO)",
+      "path": "firmware"
+    }
+  ],
+  "settings": {}
+}
