@@ -3,9 +3,9 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 
-#define PIN_LED_R 12
-#define PIN_LED_G 13
-#define PIN_LED_B 14
+#define PIN_LED_R 25
+#define PIN_LED_G 26
+#define PIN_LED_B 27
 
 #define SAMPLE_INTERVAL_US 5000UL  // 200 Hz → 5 ms
 
@@ -15,6 +15,22 @@ static inline void setLED(bool r, bool g, bool b) {
     digitalWrite(PIN_LED_R, r ? HIGH : LOW);
     digitalWrite(PIN_LED_G, g ? HIGH : LOW);
     digitalWrite(PIN_LED_B, b ? HIGH : LOW);
+}
+
+// ── I2C bus recovery — 9 SCL pulses to release a locked slave ─────────────
+static void i2c_recover() {
+    pinMode(22, OUTPUT);  // SCL
+    pinMode(21, OUTPUT);  // SDA
+    digitalWrite(21, HIGH);
+    for (int i = 0; i < 9; i++) {
+        digitalWrite(22, HIGH); delayMicroseconds(5);
+        digitalWrite(22, LOW);  delayMicroseconds(5);
+    }
+    digitalWrite(21, LOW);                 // STOP: SDA low → high while SCL high
+    digitalWrite(22, HIGH); delayMicroseconds(5);
+    digitalWrite(21, HIGH); delayMicroseconds(5);
+    Wire.begin(21, 22);
+    Wire.setClock(100000);
 }
 
 // ── Shared hardware init ───────────────────────────────────────────────────
@@ -29,9 +45,13 @@ void setup() {
     Wire.begin(21, 22);   // SDA=21, SCL=22
     Wire.setClock(100000); // 100 kHz — more tolerant to motor EMI than default 400 kHz
 
-    if (!mpu.begin(MPU6050_I2CADDR_DEFAULT, &Wire)) {
-        setLED(true, false, false);  // red: I2C failure
-        while (1) { delay(10); }
+    int retries = 0;
+    while (!mpu.begin(MPU6050_I2CADDR_DEFAULT, &Wire)) {
+        setLED(true, false, false);
+        delay(200);
+        setLED(false, false, false);
+        delay(200);
+        if (++retries % 5 == 0) i2c_recover();
     }
 
     // 94 Hz LPF sits just under the 100 Hz Nyquist for 200 Hz sampling
@@ -57,10 +77,10 @@ void loop() {
     sensors_event_t a, g, temp;
     if (!mpu.getEvent(&a, &g, &temp)) return;
 
-    const float az = a.acceleration.z;
+    const float az = a.acceleration.x;
 
     // Reject readings that imply physically impossible jerk at 200 Hz.
-    // A 130-motor can't change accel_z by >15 m/s² in 5 ms; larger jumps are I2C noise.
+    // A 130-motor can't change accel_x by >15 m/s² in 5 ms; larger jumps are I2C noise.
     static float prev_az  = 0.0f;
     static bool  has_prev = false;
     if (has_prev && fabsf(az - prev_az) > 15.0f) return;
@@ -227,7 +247,7 @@ void loop() {
 
     sensors_event_t a, g, temp;
     mpu.getEvent(&a, &g, &temp);
-    const float az = a.acceleration.z;
+    const float az = a.acceleration.x;
 
     // Raw waveform line — dashboard uses this for the live plot
     Serial.print(millis());

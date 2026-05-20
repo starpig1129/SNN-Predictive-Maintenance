@@ -67,14 +67,18 @@ def make_windows(spikes: np.ndarray, label: int, window: int, stride: int):
 # ── Dataset loading ───────────────────────────────────────────────────────────
 
 def load_dataset(data_dir: pathlib.Path, delta_thresh: float, window: int, stride: int):
-    label_map = {"normal.csv": 0, "anomaly.csv": 1}
+    # idle.csv is optional; treated as normal (label 0) when present
+    required = {"normal.csv": 0, "anomaly.csv": 1}
+    optional = {"idle.csv":   0}
     Xs, ys = [], []
-    for fname, label in label_map.items():
+    for fname, label in {**required, **optional}.items():
         path = data_dir / fname
         if not path.exists():
+            if fname in optional:
+                continue
             raise FileNotFoundError(
                 f"Missing training file: {path}\n"
-                "Collect data first:  python logger.py --port COM3 --output data/normal.csv"
+                "Collect data first:  python logger.py --port COM5 --output data/normal.csv"
             )
         df     = pd.read_csv(path)
         signal = df["accel_z"].to_numpy(dtype=np.float32)
