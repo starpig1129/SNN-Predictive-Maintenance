@@ -26,7 +26,8 @@ void setup() {
     pinMode(PIN_LED_B, OUTPUT);
     setLED(false, false, false);
 
-    Wire.begin(21, 22);  // SDA=21, SCL=22
+    Wire.begin(21, 22);   // SDA=21, SCL=22
+    Wire.setClock(100000); // 100 kHz — more tolerant to motor EMI than default 400 kHz
 
     if (!mpu.begin(MPU6050_I2CADDR_DEFAULT, &Wire)) {
         setLED(true, false, false);  // red: I2C failure
@@ -54,11 +55,21 @@ void loop() {
     lastUs += SAMPLE_INTERVAL_US;  // drift-free cadence
 
     sensors_event_t a, g, temp;
-    mpu.getEvent(&a, &g, &temp);
+    if (!mpu.getEvent(&a, &g, &temp)) return;
+
+    const float az = a.acceleration.z;
+
+    // Reject readings that imply physically impossible jerk at 200 Hz.
+    // A 130-motor can't change accel_z by >15 m/s² in 5 ms; larger jumps are I2C noise.
+    static float prev_az  = 0.0f;
+    static bool  has_prev = false;
+    if (has_prev && fabsf(az - prev_az) > 15.0f) return;
+    prev_az  = az;
+    has_prev = true;
 
     Serial.print(millis());
     Serial.print(',');
-    Serial.println(a.acceleration.z, 4);
+    Serial.println(az, 4);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
