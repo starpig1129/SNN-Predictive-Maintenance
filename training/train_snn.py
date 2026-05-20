@@ -67,18 +67,18 @@ def make_windows(spikes: np.ndarray, label: int, window: int, stride: int):
 # ── Dataset loading ───────────────────────────────────────────────────────────
 
 def load_dataset(data_dir: pathlib.Path, delta_thresh: float, window: int, stride: int):
-    # idle.csv is optional; treated as normal (label 0) when present
-    required = {"normal.csv": 0, "anomaly.csv": 1}
-    optional = {"idle.csv":   0}
+    # label 0 = idle / fault (motor stopped)
+    # label 1 = normal running
+    # Sparse inputs naturally default to argmax=0 in the SNN, so the idle class
+    # is correctly detected even without explicit training signal.
+    label_map = {"idle.csv": 0, "normal.csv": 1}
     Xs, ys = [], []
-    for fname, label in {**required, **optional}.items():
+    for fname, label in label_map.items():
         path = data_dir / fname
         if not path.exists():
-            if fname in optional:
-                continue
             raise FileNotFoundError(
                 f"Missing training file: {path}\n"
-                "Collect data first:  python logger.py --port COM5 --output data/normal.csv"
+                "Collect data first:  python logger.py --port COM5 --output data/idle.csv"
             )
         df     = pd.read_csv(path)
         signal = df["accel_z"].to_numpy(dtype=np.float32)
@@ -187,7 +187,7 @@ def main():
     X, y = load_dataset(
         pathlib.Path(args.data_dir), args.delta_thresh, args.window, args.stride
     )
-    print(f"  Total windows : {len(X)}  (normal={int((y==0).sum())}, anomaly={int((y==1).sum())})")
+    print(f"  Total windows : {len(X)}  (idle/fault={int((y==0).sum())}, normal={int((y==1).sum())})")
     print(f"  Overall spike density : {X.mean():.3f}")
 
     X_tr, X_te, y_tr, y_te = train_test_split(
@@ -216,7 +216,7 @@ def main():
     # ── Evaluation ────────────────────────────────────────────────────────────
     preds, labels = evaluate(model, te_loader, device, args.t_steps)
     print("\nTest-set classification report:")
-    print(classification_report(labels, preds, target_names=["normal", "anomaly"], digits=4))
+    print(classification_report(labels, preds, target_names=["idle(fault)", "normal"], digits=4))
 
     # ── Save ──────────────────────────────────────────────────────────────────
     out_path = pathlib.Path(args.model_out)

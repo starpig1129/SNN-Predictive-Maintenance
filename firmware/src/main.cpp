@@ -143,8 +143,10 @@ static void run_inference(const uint8_t *spk_in) {
     static float cur2[2];
     static float spk1[SNN_HIDDEN];
 
-    float anomaly_sum = 0.0f;
-    float hidden_sum  = 0.0f;
+    // class 0 = idle/fault, class 1 = normal running
+    float fault_sum  = 0.0f;  // spikes from output neuron 0
+    float normal_sum = 0.0f;  // spikes from output neuron 1
+    float hidden_sum = 0.0f;
 
     memset(mem1, 0, sizeof(mem1));
     memset(mem2, 0, sizeof(mem2));
@@ -187,15 +189,18 @@ static void run_inference(const uint8_t *spk_in) {
             mem2[k] = SNN_BETA2 * mem2[k] + cur2[k];
             if (mem2[k] >= SNN_THRESH2) {
                 mem2[k] -= SNN_THRESH2;
-                if (k == 1) anomaly_sum += 1.0f;
+                if (k == 0) fault_sum  += 1.0f;
+                if (k == 1) normal_sum += 1.0f;
             }
         }
     }
 
-    g_hidden_rate  = hidden_sum  / (float)SNN_T_STEPS;
-    g_anomaly_spk  = anomaly_sum;
-    g_mem2_anomaly = mem2[1];
-    g_status       = (anomaly_sum > ANOMALY_THRESHOLD) ? 1u : 0u;
+    g_hidden_rate  = hidden_sum / (float)SNN_T_STEPS;
+    g_anomaly_spk  = fault_sum;
+    g_mem2_anomaly = mem2[0];  // fault neuron membrane potential
+    // Argmax: fault if normal neuron does not clearly dominate.
+    // Ties (both 0, sparse idle input) correctly map to fault.
+    g_status = (normal_sum <= fault_sum) ? 1u : 0u;
 
     // Inference result line for the dashboard
     Serial.print("INF,");
