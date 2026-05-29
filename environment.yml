@@ -9,6 +9,7 @@ dependencies:
   - pip
   - numpy
   - pandas
+  - scipy
   - scikit-learn
   - matplotlib
   - jupyter
