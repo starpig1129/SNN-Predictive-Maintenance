@@ -12,7 +12,7 @@ dist/
 build/
 
 # Data (raw CSVs can be large)
-training/data/*.csv
+training/data
 
 # Jupyter checkpoints
 .ipynb_checkpoints/
