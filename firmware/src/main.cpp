@@ -4,9 +4,9 @@
 #include <Adafruit_Sensor.h>
 #include <LittleFS.h>
 
-#define PIN_LED_R 25
-#define PIN_LED_G 26
-#define PIN_LED_B 27
+#define PIN_LED_R 12
+#define PIN_LED_G 13
+#define PIN_LED_B 14
 
 #define SAMPLE_INTERVAL_US 5000UL  // 200 Hz → 5 ms
 
@@ -50,6 +50,7 @@ void setup() {
 
     Wire.begin(21, 22);   // SDA=21, SCL=22
     Wire.setClock(100000); // 100 kHz — more tolerant to motor EMI than default 400 kHz
+    Wire.setTimeOut(15);   // 15 ms hard cap per transaction — prevents long I2C hangs under EMI
 
     int retries = 0;
     while (!mpu.begin(MPU6050_I2CADDR_DEFAULT, &Wire)) {
@@ -70,9 +71,13 @@ void setup() {
     if (!LittleFS.begin(true)) {
         setLED(true, false, true);  // magenta = flash init failed
     } else {
-        LittleFS.remove("/data.csv");
-        File hdr = LittleFS.open("/data.csv", FILE_WRITE);
-        if (hdr) { hdr.println("timestamp_ms,accel_z"); hdr.close(); }
+        // Only create a fresh file when none exists — preserves data across
+        // accidental resets caused by motor EMI.  Send 'c' over serial to
+        // explicitly start a new recording session.
+        if (!LittleFS.exists("/data.csv")) {
+            File hdr = LittleFS.open("/data.csv", FILE_WRITE);
+            if (hdr) { hdr.println("timestamp_ms,accel_z"); hdr.close(); }
+        }
         g_dataFile = LittleFS.open("/data.csv", FILE_APPEND);
     }
 #endif
@@ -92,10 +97,11 @@ void setup() {
 #ifndef INFERENCE_MODE
 
 void loop() {
-    // ── Dump command ──────────────────────────────────────────────────────────
+    // ── Serial commands ───────────────────────────────────────────────────────
     if (Serial.available()) {
         const char c = (char)Serial.read();
         if (c == 'd') {
+            // Dump flash to serial
             if (g_dataFile) { g_dataFile.flush(); g_dataFile.close(); }
             File f = LittleFS.open("/data.csv", FILE_READ);
             if (f) {
@@ -106,18 +112,42 @@ void loop() {
             } else {
                 Serial.println("ERROR:no_file");
             }
+            g_dataFile = LittleFS.open("/data.csv", FILE_APPEND);
+            return;
+        }
+        if (c == 'c') {
+            // Clear flash and start a new recording session
+            if (g_dataFile) { g_dataFile.close(); }
+            LittleFS.remove("/data.csv");
+            File hdr = LittleFS.open("/data.csv", FILE_WRITE);
+            if (hdr) { hdr.println("timestamp_ms,accel_z"); hdr.close(); }
+            g_dataFile   = LittleFS.open("/data.csv", FILE_APPEND);
+            g_sampleCount = 0;
+            Serial.println("OK:cleared");
             return;
         }
     }
 
     // ── 200 Hz cadence ────────────────────────────────────────────────────────
-    static unsigned long lastUs = 0;
+    static unsigned long lastUs    = 0;
+    static uint8_t       i2c_fails = 0;
     const unsigned long now = micros();
     if (now - lastUs < SAMPLE_INTERVAL_US) return;
     lastUs += SAMPLE_INTERVAL_US;
 
     sensors_event_t a, g, temp;
-    if (!mpu.getEvent(&a, &g, &temp)) return;
+    if (!mpu.getEvent(&a, &g, &temp)) {
+        // Consecutive I2C failures → bus may be locked; attempt recovery
+        if (++i2c_fails >= 10) {
+            i2c_recover();
+            mpu.begin(MPU6050_I2CADDR_DEFAULT, &Wire);
+            mpu.setAccelerometerRange(MPU6050_RANGE_4_G);
+            mpu.setFilterBandwidth(MPU6050_BAND_94_HZ);
+            i2c_fails = 0;
+        }
+        return;
+    }
+    i2c_fails = 0;
 
     const float az = a.acceleration.x;
 
@@ -206,13 +236,26 @@ void loop() {
     const unsigned long now_ms = millis();
     update_leds(now_ms);
 
-    static unsigned long lastUs = 0;
+    static unsigned long lastUs    = 0;
+    static uint8_t       i2c_fails = 0;
     const unsigned long  nowUs  = micros();
     if (nowUs - lastUs < SAMPLE_INTERVAL_US) return;
     lastUs += SAMPLE_INTERVAL_US;
 
     sensors_event_t a, g, temp;
-    mpu.getEvent(&a, &g, &temp);
+    if (!mpu.getEvent(&a, &g, &temp)) {
+        // Skip spike computation on I2C failure — do not update prev_az,
+        // otherwise the next good reading would produce a spurious large delta.
+        if (++i2c_fails >= 10) {
+            i2c_recover();
+            mpu.begin(MPU6050_I2CADDR_DEFAULT, &Wire);
+            mpu.setAccelerometerRange(MPU6050_RANGE_4_G);
+            mpu.setFilterBandwidth(MPU6050_BAND_94_HZ);
+            i2c_fails = 0;
+        }
+        return;
+    }
+    i2c_fails = 0;
     const float az = a.acceleration.x;
 
     Serial.print(millis());
@@ -239,7 +282,11 @@ void loop() {
     // ── Decision every SNN_DECISION_INTERVAL samples ──────────────────────
     if (++dec_count >= SNN_DECISION_INTERVAL) {
         g_hidden_rate  = (float)spk_count / (float)(SNN_DECISION_INTERVAL * SNN_HIDDEN);
-        g_status       = (out_acc[1] <= out_acc[0]) ? 1u : 0u;
+        if (g_hidden_rate < SNN_IDLE_RATE_THRESH) {
+            g_status = 1u;  // motor stopped = anomaly
+        } else {
+            g_status = (out_acc[1] <= out_acc[0]) ? 1u : 0u;
+        }
         g_anomaly_spk  = out_acc[0];
         g_mem2_anomaly = out_acc[0];
 
@@ -255,6 +302,8 @@ void loop() {
         out_acc[0] = out_acc[1] = 0.0f;
         spk_count  = 0;
         dec_count  = 0;
+        // Reset membrane to match training (each chunk starts from mem1=0)
+        memset(mem1, 0, sizeof(mem1));
     }
 }
 

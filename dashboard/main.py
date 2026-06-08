@@ -12,6 +12,7 @@ Serial line protocol (from firmware):
 """
 
 import sys
+import queue
 import collections
 from typing import Optional
 
@@ -23,24 +24,30 @@ import pyqtgraph as pg
 
 # ── Plot history length ────────────────────────────────────────────────────────
 WAVEFORM_LEN = 400   # samples shown in the waveform plot
-MEM_POT_LEN  = 200   # inference windows shown in the membrane-potential plot
+MEM_POT_LEN  = 60    # inference windows shown in the membrane-potential plot
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Serial reader thread
 # ═══════════════════════════════════════════════════════════════════════════════
 class SerialReader(QtCore.QThread):
-    """Reads lines from the serial port and emits typed signals."""
+    """Reads lines from the serial port.
 
-    raw_sample = QtCore.pyqtSignal(float, float)   # (timestamp_ms, accel_z)
-    inference  = QtCore.pyqtSignal(float, float, int, float)  # (hidden_rate, anomaly_spk, status, mem2)
-    error      = QtCore.pyqtSignal(str)
+    Raw accel samples are placed into sample_queue (thread-safe, no Qt signal
+    overhead at 200 Hz).  Inference results are emitted as a Qt signal since
+    they arrive infrequently (~1 Hz) and need to update UI widgets directly.
+    """
 
-    def __init__(self, port: str, baud: int = 115200, parent=None):
+    inference = QtCore.pyqtSignal(float, float, int, float)  # (hidden_rate, anomaly_spk, status, mem2)
+    error     = QtCore.pyqtSignal(str)
+
+    def __init__(self, port: str, sample_queue: queue.Queue,
+                 baud: int = 115200, parent=None):
         super().__init__(parent)
-        self._port   = port
-        self._baud   = baud
-        self._active = True
+        self._port         = port
+        self._baud         = baud
+        self._sample_queue = sample_queue
+        self._active       = True
 
     def stop(self):
         self._active = False
@@ -78,8 +85,8 @@ class SerialReader(QtCore.QThread):
                 parts = line.split(",")
                 if len(parts) == 2:
                     try:
-                        self.raw_sample.emit(float(parts[0]), float(parts[1]))
-                    except ValueError:
+                        self._sample_queue.put_nowait(float(parts[1]))
+                    except (ValueError, queue.Full):
                         pass
 
         ser.close()
@@ -102,6 +109,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resize(1200, 680)
 
         self._reader: Optional[SerialReader] = None
+        self._sample_queue: queue.Queue = queue.Queue(maxsize=2000)
 
         # Circular buffers
         self._accel_buf    = collections.deque([0.0] * WAVEFORM_LEN, maxlen=WAVEFORM_LEN)
@@ -112,10 +120,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._build_ui()
 
-        # 60 Hz plot refresh
+        # 30 Hz plot refresh — drains sample queue and redraws both plots
         self._timer = QtCore.QTimer()
         self._timer.timeout.connect(self._refresh_plots)
-        self._timer.start(16)
+        self._timer.start(33)
 
     # ── UI construction ────────────────────────────────────────────────────────
     def _build_ui(self):
@@ -171,16 +179,15 @@ class MainWindow(QtWidgets.QMainWindow):
         )
 
         # Membrane potential plot
-        self._mem_pw = pg.PlotWidget(title="Output Neuron Membrane Potential  (anomaly)")
+        self._mem_pw = pg.PlotWidget(title="Fault Logit Accumulator")
         self._mem_pw.showGrid(x=True, y=True, alpha=0.3)
-        self._mem_pw.setLabel("left", "mem potential")
+        self._mem_pw.setLabel("left", "fault logit")
         self._mem_pw.setLabel("bottom", "inference windows (newest →)")
         self._mem_curve = self._mem_pw.plot(
             pen=pg.mkPen("#f38ba8", width=1.5)
         )
-        # Threshold reference line
         self._thresh_line = pg.InfiniteLine(
-            pos=1.0, angle=0,
+            pos=0.0, angle=0,
             pen=pg.mkPen("#fab387", width=1, style=QtCore.Qt.DashLine)
         )
         self._mem_pw.addItem(self._thresh_line)
@@ -223,8 +230,13 @@ class MainWindow(QtWidgets.QMainWindow):
             if not port:
                 self._connect_btn.setChecked(False)
                 return
-            self._reader = SerialReader(port)
-            self._reader.raw_sample.connect(self._on_raw_sample)
+            # Clear stale samples before connecting
+            while not self._sample_queue.empty():
+                try:
+                    self._sample_queue.get_nowait()
+                except queue.Empty:
+                    break
+            self._reader = SerialReader(port, self._sample_queue)
             self._reader.inference.connect(self._on_inference)
             self._reader.error.connect(self._on_serial_error)
             self._reader.start()
@@ -243,9 +255,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self._set_status("offline")
 
     # ── Data slots ────────────────────────────────────────────────────────────
-    def _on_raw_sample(self, _ts: float, az: float):
-        self._accel_buf.append(az)
-
     def _on_inference(self, hidden_rate: float, anomaly_spk: float,
                       status: int, mem2: float):
         self._mem_buf.append(mem2)
@@ -267,8 +276,17 @@ class MainWindow(QtWidgets.QMainWindow):
         QtWidgets.QMessageBox.warning(self, "Serial error", msg)
         self._disconnect()
 
-    # ── Plot refresh ──────────────────────────────────────────────────────────
+    # ── Plot refresh — drains queue then redraws ───────────────────────────────
     def _refresh_plots(self):
+        # Drain all pending samples from the queue in one go
+        drained = 0
+        while drained < 400:
+            try:
+                self._accel_buf.append(self._sample_queue.get_nowait())
+                drained += 1
+            except queue.Empty:
+                break
+
         self._waveform_curve.setData(np.array(self._accel_buf))
         self._mem_curve.setData(np.array(self._mem_buf))
 

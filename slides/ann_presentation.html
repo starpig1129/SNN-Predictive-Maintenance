@@ -1,0 +1,836 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8">
+<title>Streaming SNN — ANN Course</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;overflow:hidden;cursor:pointer}
+.deck{width:100vw;height:100vh;position:relative}
+.slide{display:none;position:absolute;inset:0}
+.slide.active{display:block}
+svg{width:100%;height:100%}
+#pn{position:fixed;bottom:14px;left:22px;color:rgba(255,255,255,.3);font:13px sans-serif;z-index:9;pointer-events:none}
+#hint{position:fixed;bottom:14px;right:22px;color:rgba(255,255,255,.22);font:12px sans-serif;z-index:9;pointer-events:none}
+</style></head><body>
+<div class="deck" id="deck">
+
+<!-- ── SLIDE 1  Title ─────────────────────────────────────────────── -->
+<div class="slide active"><svg viewBox="0 0 1280 720">
+<defs>
+  <linearGradient id="bg1" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#0d1117"/><stop offset="100%" stop-color="#0d1f0d"/>
+  </linearGradient>
+  <linearGradient id="topbar" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0%" stop-color="#3fb950" stop-opacity="0"/>
+    <stop offset="40%" stop-color="#3fb950" stop-opacity=".9"/>
+    <stop offset="65%" stop-color="#58a6ff" stop-opacity=".9"/>
+    <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+  </linearGradient>
+  <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<rect width="1280" height="720" fill="url(#bg1)"/>
+<rect width="1280" height="4" fill="url(#topbar)"/>
+<g stroke="#0d1f0d" stroke-width="1">
+  <line x1="0" y1="240" x2="1280" y2="240"/><line x1="0" y1="480" x2="1280" y2="480"/>
+  <line x1="427" y1="0" x2="427" y2="720"/><line x1="853" y1="0" x2="853" y2="720"/>
+</g>
+<!-- LIF membrane potential decoration -->
+<path fill="none" stroke="#3fb950" stroke-width="2.5" opacity=".5" filter="url(#glow)"
+  d="M 80,520 Q 200,515 300,470 Q 370,440 400,420 Q 420,406 435,400 L 435,515 Q 520,508 600,480 Q 660,455 700,435 Q 720,420 730,400 L 730,510 Q 820,508 1000,506 Q 1100,505 1200,504"/>
+<!-- Threshold line -->
+<line x1="80" y1="400" x2="1200" y2="400" stroke="#3fb950" stroke-width="1" stroke-dasharray="8 5" opacity=".3"/>
+<!-- Spike markers -->
+<polygon points="430,375 435,360 440,375" fill="#3fb950" opacity=".7"/>
+<polygon points="725,375 730,360 735,375" fill="#3fb950" opacity=".7"/>
+<!-- Titles -->
+<text x="640" y="110" text-anchor="middle" fill="#f0f6fc" style="font:700 52px 'Segoe UI',sans-serif;letter-spacing:-1px">Streaming Spiking Neural Networks</text>
+<text x="640" y="188" text-anchor="middle" fill="#3fb950" style="font:600 36px 'Segoe UI',sans-serif">for Real-Time Fault Detection</text>
+<text x="640" y="252" text-anchor="middle" fill="#8b949e" style="font:400 22px 'Segoe UI',sans-serif">LIF Neurons  ·  Surrogate Gradient  ·  TBPTT  ·  Edge Deployment</text>
+<text x="640" y="312" text-anchor="middle" fill="#484f58" style="font:400 17px 'Segoe UI',sans-serif">Artificial Neural Networks  ·  Final Report  ·  2026</text>
+<text x="640" y="628" text-anchor="middle" fill="#30363d" style="font:14px sans-serif">mem(t) = β · mem(t−1) + W · spike(t)    ·    fire if mem ≥ θ    ·    97 parameters</text>
+</svg></div>
+
+<!-- ── SLIDE 2  ANN vs SNN ─────────────────────────────────────────── -->
+<div class="slide"><svg viewBox="0 0 1280 720">
+<rect width="1280" height="720" fill="#0d1117"/>
+<defs><linearGradient id="topbar" x1="0" y1="0" x2="1" y2="0">
+  <stop offset="0%" stop-color="#3fb950" stop-opacity="0"/>
+  <stop offset="35%" stop-color="#3fb950" stop-opacity=".9"/>
+  <stop offset="65%" stop-color="#58a6ff" stop-opacity=".9"/>
+  <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+</linearGradient></defs>
+<rect width="1280" height="3" fill="url(#topbar)"/>
+<text x="30" y="38" fill="#484f58" style="font:13px sans-serif">ANN Course · SNN Predictive Maintenance</text>
+<text x="640" y="78" text-anchor="middle" fill="#f0f6fc" style="font:700 40px 'Segoe UI',sans-serif">From ANN to Spiking Neural Network</text>
+<line x1="0" y1="92" x2="1280" y2="92" stroke="#21262d" stroke-width="1"/>
+<!-- Column headers -->
+<rect x="60" y="108" width="500" height="50" rx="8" fill="#1f1000" stroke="#d29922" stroke-width="1.5"/>
+<text x="310" y="140" text-anchor="middle" fill="#d29922" style="font:700 18px 'Segoe UI',sans-serif">Traditional ANN</text>
+<rect x="720" y="108" width="500" height="50" rx="8" fill="#0f2a1a" stroke="#3fb950" stroke-width="2"/>
+<text x="970" y="140" text-anchor="middle" fill="#3fb950" style="font:700 18px 'Segoe UI',sans-serif">Spiking Neural Network (SNN)</text>
+<!-- Row: Activation -->
+<rect x="60" y="175" width="500" height="80" rx="6" fill="#161b22" stroke="#21262d" stroke-width="1"/>
+<text x="80" y="205" fill="#8b949e" style="font:12px sans-serif">Activation</text>
+<text x="80" y="232" fill="#f0f6fc" style="font:700 17px sans-serif">Continuous  (0.0 – 1.0)</text>
+<!-- continuous bar visual -->
+<defs><linearGradient id="cbar" x1="0" y1="0" x2="1" y2="0">
+  <stop offset="0%" stop-color="#30363d"/><stop offset="100%" stop-color="#d29922"/>
+</linearGradient></defs>
+<rect x="370" y="218" width="170" height="18" rx="4" fill="url(#cbar)"/>
+<rect x="720" y="175" width="500" height="80" rx="6" fill="#161b22" stroke="#3fb950" stroke-width="1"/>
+<text x="740" y="205" fill="#8b949e" style="font:12px sans-serif">Activation</text>
+<text x="740" y="232" fill="#3fb950" style="font:700 17px sans-serif">Binary spikes  (0 or 1)</text>
+<!-- spike visual -->
+<g stroke="#3fb950" stroke-width="2">
+  <line x1="870" y1="244" x2="870" y2="224"/><line x1="900" y1="244" x2="900" y2="224"/>
+  <line x1="960" y1="244" x2="960" y2="224"/><line x1="1050" y1="244" x2="1050" y2="224"/>
+  <line x1="1120" y1="244" x2="1120" y2="224"/>
+</g>
+<line x1="740" y1="244" x2="1200" y2="244" stroke="#30363d" stroke-width="1"/>
+<!-- Row: Communication -->
+<rect x="60" y="268" width="500" height="75" rx="6" fill="#161b22" stroke="#21262d" stroke-width="1"/>
+<text x="80" y="294" fill="#8b949e" style="font:12px sans-serif">Communication</text>
+<text x="80" y="318" fill="#f0f6fc" style="font:700 17px sans-serif">Dense float vectors  (all neurons active)</text>
+<rect x="720" y="268" width="500" height="75" rx="6" fill="#161b22" stroke="#3fb950" stroke-width="1"/>
+<text x="740" y="294" fill="#8b949e" style="font:12px sans-serif">Communication</text>
+<text x="740" y="318" fill="#3fb950" style="font:700 17px sans-serif">Sparse events  (only firing neurons)</text>
+<!-- Row: Time / State -->
+<rect x="60" y="356" width="500" height="75" rx="6" fill="#161b22" stroke="#21262d" stroke-width="1"/>
+<text x="80" y="382" fill="#8b949e" style="font:12px sans-serif">Temporal State</text>
+<text x="80" y="406" fill="#f0f6fc" style="font:700 17px sans-serif">Stateless  (no memory between calls)</text>
+<rect x="720" y="356" width="500" height="75" rx="6" fill="#161b22" stroke="#3fb950" stroke-width="1"/>
+<text x="740" y="382" fill="#8b949e" style="font:12px sans-serif">Temporal State</text>
+<text x="740" y="406" fill="#3fb950" style="font:700 17px sans-serif">Membrane potential  (persistent memory)</text>
+<!-- Row: Training -->
+<rect x="60" y="444" width="500" height="75" rx="6" fill="#161b22" stroke="#21262d" stroke-width="1"/>
+<text x="80" y="470" fill="#8b949e" style="font:12px sans-serif">Gradient</text>
+<text x="80" y="494" fill="#f0f6fc" style="font:700 17px sans-serif">Standard backpropagation  (differentiable)</text>
+<rect x="720" y="444" width="500" height="75" rx="6" fill="#161b22" stroke="#3fb950" stroke-width="1"/>
+<text x="740" y="470" fill="#8b949e" style="font:12px sans-serif">Gradient</text>
+<text x="740" y="494" fill="#3fb950" style="font:700 17px sans-serif">Surrogate gradient  (non-differentiable spike)</text>
+<!-- Row: Efficiency -->
+<rect x="60" y="532" width="500" height="75" rx="6" fill="#161b22" stroke="#21262d" stroke-width="1"/>
+<text x="80" y="558" fill="#8b949e" style="font:12px sans-serif">Edge Efficiency</text>
+<text x="80" y="582" fill="#f0f6fc" style="font:700 17px sans-serif">Heavy  (float multiply every step)</text>
+<rect x="720" y="532" width="500" height="75" rx="6" fill="#161b22" stroke="#3fb950" stroke-width="1"/>
+<text x="740" y="558" fill="#8b949e" style="font:12px sans-serif">Edge Efficiency</text>
+<text x="740" y="582" fill="#3fb950" style="font:700 17px sans-serif">Light  (binary input: only add, no multiply)</text>
+<!-- VS badge -->
+<circle cx="640" cy="390" r="36" fill="#161b22" stroke="#30363d" stroke-width="2"/>
+<text x="640" y="398" text-anchor="middle" fill="#8b949e" style="font:700 20px 'Segoe UI',sans-serif">VS</text>
+</svg></div>
+
+<!-- ── SLIDE 3  LIF Neuron ─────────────────────────────────────────── -->
+<div class="slide"><svg viewBox="0 0 1280 720">
+<rect width="1280" height="720" fill="#0d1117"/>
+<defs><marker id="axarr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+  <polygon points="0 0,8 3,0 6" fill="#30363d"/>
+</marker></defs>
+<text x="30" y="38" fill="#484f58" style="font:13px sans-serif">ANN Course · SNN Predictive Maintenance</text>
+<text x="640" y="78" text-anchor="middle" fill="#f0f6fc" style="font:700 40px 'Segoe UI',sans-serif">Leaky Integrate-and-Fire Neuron</text>
+<line x1="0" y1="92" x2="1280" y2="92" stroke="#21262d" stroke-width="1"/>
+<!-- Circuit diagram (left half) -->
+<text x="300" y="130" text-anchor="middle" fill="#8b949e" style="font:700 14px sans-serif">Biological Analogy (RC Circuit)</text>
+<!-- Horizontal wire (top) -->
+<line x1="80" y1="250" x2="520" y2="250" stroke="#58a6ff" stroke-width="2"/>
+<!-- Input current arrow -->
+<defs><marker id="iar" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+  <polygon points="0 0,10 3.5,0 7" fill="#58a6ff"/>
+</marker></defs>
+<line x1="80" y1="250" x2="80" y2="380" stroke="#58a6ff" stroke-width="2" marker-end="url(#iar)"/>
+<text x="55" y="310" text-anchor="middle" fill="#58a6ff" style="font:700 13px sans-serif">I(t)</text>
+<text x="55" y="326" text-anchor="middle" fill="#484f58" style="font:11px sans-serif">spike</text>
+<!-- Capacitor (C - membrane capacitance): at x=200 -->
+<line x1="200" y1="250" x2="200" y2="295" stroke="#58a6ff" stroke-width="2"/>
+<line x1="170" y1="295" x2="230" y2="295" stroke="#58a6ff" stroke-width="3"/>
+<line x1="170" y1="310" x2="230" y2="310" stroke="#58a6ff" stroke-width="3"/>
+<line x1="200" y1="310" x2="200" y2="380" stroke="#58a6ff" stroke-width="2"/>
+<text x="245" y="306" fill="#3fb950" style="font:700 13px sans-serif">C</text>
+<text x="245" y="322" fill="#484f58" style="font:11px sans-serif">mem</text>
+<!-- Resistor (R - leak): at x=360 -->
+<line x1="360" y1="250" x2="360" y2="275" stroke="#58a6ff" stroke-width="2"/>
+<path fill="none" stroke="#58a6ff" stroke-width="2" d="M 360,275 L 348,282 L 372,289 L 348,296 L 372,303 L 348,310 L 372,317 L 360,324"/>
+<line x1="360" y1="324" x2="360" y2="380" stroke="#58a6ff" stroke-width="2"/>
+<text x="385" y="306" fill="#d29922" style="font:700 13px sans-serif">R</text>
+<text x="385" y="322" fill="#484f58" style="font:11px sans-serif">leak β</text>
+<!-- Bottom wire (ground) -->
+<line x1="80" y1="380" x2="520" y2="380" stroke="#58a6ff" stroke-width="2"/>
+<!-- Comparator / threshold -->
+<line x1="520" y1="250" x2="520" y2="380" stroke="#58a6ff" stroke-width="2"/>
+<polygon points="500,280 520,315 500,350" fill="none" stroke="#f85149" stroke-width="2"/>
+<text x="540" y="318" fill="#f85149" style="font:700 13px sans-serif">θ</text>
+<!-- Spike output arrow -->
+<line x1="538" y1="315" x2="610" y2="315" stroke="#f85149" stroke-width="2" marker-end="url(#iar)"/>
+<text x="645" y="319" fill="#f85149" style="font:700 14px sans-serif">spike!</text>
+<!-- Reset arrow back -->
+<path d="M 560,325 Q 560,430 200,430 Q 180,430 180,395" fill="none" stroke="#f85149" stroke-width="1.5" stroke-dasharray="4 3"/>
+<polygon points="177,395 180,380 183,395" fill="#f85149"/>
+<text x="380" y="448" text-anchor="middle" fill="#f85149" style="font:12px sans-serif">soft reset: mem −= θ</text>
+<!-- Equation (right side) -->
+<rect x="700" y="130" width="540" height="80" rx="10" fill="#161b22" stroke="#3fb950" stroke-width="2"/>
+<text x="970" y="165" text-anchor="middle" fill="#8b949e" style="font:13px sans-serif">Discrete-time LIF equation</text>
+<text x="720" y="194" fill="#3fb950" style="font:700 17px 'Courier New',monospace">mem(t) = β · mem(t−1) + W · x(t)</text>
+<!-- Parameters table -->
+<rect x="700" y="230" width="540" height="240" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="970" y="258" text-anchor="middle" fill="#8b949e" style="font:700 13px sans-serif">Parameters</text>
+<line x1="715" y1="265" x2="1225" y2="265" stroke="#21262d" stroke-width="1"/>
+<text x="720" y="290" fill="#58a6ff" style="font:700 14px sans-serif">β (beta)</text>
+<text x="870" y="290" fill="#8b949e" style="font:14px sans-serif">leak factor  ∈ (0, 1)</text>
+<text x="870" y="308" fill="#484f58" style="font:12px sans-serif">learned via backprop; controls decay speed</text>
+<text x="720" y="338" fill="#3fb950" style="font:700 14px sans-serif">θ (threshold)</text>
+<text x="870" y="338" fill="#8b949e" style="font:14px sans-serif">fire threshold = 1.0 (fixed)</text>
+<text x="870" y="356" fill="#484f58" style="font:12px sans-serif">soft reset: mem −= θ  (not zeroed)</text>
+<text x="720" y="386" fill="#d29922" style="font:700 14px sans-serif">W (weights)</text>
+<text x="870" y="386" fill="#8b949e" style="font:14px sans-serif">synaptic weights, learned via BPTT</text>
+<text x="870" y="404" fill="#484f58" style="font:12px sans-serif">no bias terms (simplifies C export)</text>
+<text x="720" y="434" fill="#f85149" style="font:700 14px sans-serif">x(t)</text>
+<text x="870" y="434" fill="#8b949e" style="font:14px sans-serif">binary spike input {0, 1}</text>
+<text x="870" y="452" fill="#484f58" style="font:12px sans-serif">from delta modulation of accelerometer</text>
+<!-- Membrane potential plot (bottom) -->
+<text x="300" y="490" text-anchor="middle" fill="#8b949e" style="font:700 13px sans-serif">Membrane potential dynamics</text>
+<line x1="80" y1="670" x2="620" y2="670" stroke="#30363d" stroke-width="1.5" marker-end="url(#axarr)"/>
+<line x1="80" y1="670" x2="80" y2="500" stroke="#30363d" stroke-width="1.5" marker-end="url(#axarr)"/>
+<line x1="78" y1="570" x2="82" y2="570" stroke="#30363d" stroke-width="1.5"/>
+<text x="68" y="574" text-anchor="end" fill="#d29922" style="font:11px sans-serif">θ</text>
+<line x1="80" y1="570" x2="620" y2="570" stroke="#d29922" stroke-width="1" stroke-dasharray="6 4"/>
+<path fill="none" stroke="#3fb950" stroke-width="2.5"
+  d="M 90,668 Q 160,660 220,625 Q 270,595 300,573 L 300,665 Q 360,658 410,635 Q 450,615 475,575 L 475,660 Q 530,658 620,656"/>
+<polygon points="295,550 300,537 305,550" fill="#f85149" opacity=".8"/>
+<polygon points="470,550 475,537 480,550" fill="#f85149" opacity=".8"/>
+</svg></div>
+
+<!-- ── SLIDE 4  Spike Encoding ──────────────────────────────────────── -->
+<div class="slide"><svg viewBox="0 0 1280 720">
+<rect width="1280" height="720" fill="#0d1117"/>
+<defs><pattern id="fsp4" width="7" height="24" patternUnits="userSpaceOnUse">
+  <line x1="3.5" y1="0" x2="3.5" y2="22" stroke="#f85149" stroke-width="1.5"/>
+</pattern></defs>
+<text x="30" y="38" fill="#484f58" style="font:13px sans-serif">ANN Course · SNN Predictive Maintenance</text>
+<text x="640" y="78" text-anchor="middle" fill="#f0f6fc" style="font:700 40px 'Segoe UI',sans-serif">Delta Modulation — Spike Encoding</text>
+<line x1="0" y1="92" x2="1280" y2="92" stroke="#21262d" stroke-width="1"/>
+<!-- Neuroscience analogy box -->
+<rect x="50" y="110" width="560" height="60" rx="8" fill="#161b22" stroke="#58a6ff" stroke-width="1"/>
+<text x="330" y="138" text-anchor="middle" fill="#58a6ff" style="font:700 14px sans-serif">Biological Inspiration</text>
+<text x="330" y="158" text-anchor="middle" fill="#8b949e" style="font:13px sans-serif">Retinal ganglion cells fire on luminance CHANGE, not absolute level</text>
+<!-- Formula -->
+<rect x="680" y="110" width="560" height="60" rx="8" fill="#161b22" stroke="#3fb950" stroke-width="2"/>
+<text x="960" y="138" text-anchor="middle" fill="#3fb950" style="font:700 16px 'Courier New',monospace">spike(t) = 1  if  |Δaccel| &gt; θ</text>
+<text x="960" y="158" text-anchor="middle" fill="#484f58" style="font:13px sans-serif">θ = 0.05   (tuned threshold)</text>
+<!-- Three-row comparison diagram -->
+<!-- Row labels -->
+<text x="28" y="225" fill="#8b949e" style="font:700 13px sans-serif;writing-mode:tb">Raw signal</text>
+<text x="28" y="390" fill="#8b949e" style="font:700 13px sans-serif;writing-mode:tb">|Δ| &gt; θ ?</text>
+<text x="28" y="540" fill="#8b949e" style="font:700 13px sans-serif;writing-mode:tb">Spikes</text>
+<!-- Normal column header -->
+<text x="330" y="192" text-anchor="middle" fill="#58a6ff" style="font:700 14px sans-serif">Normal  Bearing</text>
+<!-- Normal raw signal -->
+<rect x="60" y="200" width="520" height="90" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<path fill="none" stroke="#58a6ff" stroke-width="2"
+  d="M 70,245 C 82,225 98,225 110,245 C 122,265 138,265 150,245 C 162,225 178,225 190,245 C 202,265 218,265 230,245 C 242,225 258,225 270,245 C 282,265 298,265 310,245 C 322,225 338,225 350,245 C 362,265 378,265 390,245 C 402,225 418,225 430,245 C 442,265 458,265 470,245 C 482,225 498,225 510,245 C 522,265 538,265 550,245 C 562,225 568,225 572,245"/>
+<!-- Normal delta (small) -->
+<rect x="60" y="310" width="520" height="80" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<line x1="70" y1="350" x2="570" y2="350" stroke="#1a2030" stroke-width="1"/>
+<path fill="none" stroke="#d29922" stroke-width="1.5" opacity=".7"
+  d="M 70,350 L 110,340 L 150,355 L 190,342 L 230,356 L 270,341 L 310,354 L 350,343 L 390,356 L 430,342 L 470,355 L 510,344 L 550,357 L 572,350"/>
+<line x1="70" y1="335" x2="570" y2="335" stroke="#d29922" stroke-width="1" stroke-dasharray="4 4" opacity=".5"/>
+<text x="574" y="338" fill="#d29922" style="font:11px sans-serif">θ</text>
+<!-- Normal spikes -->
+<rect x="60" y="410" width="520" height="60" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<line x1="70" y1="455" x2="570" y2="455" stroke="#21262d" stroke-width="1"/>
+<g stroke="#58a6ff" stroke-width="2">
+  <line x1="110" y1="435" x2="110" y2="455"/>
+  <line x1="230" y1="435" x2="230" y2="455"/>
+  <line x1="350" y1="435" x2="350" y2="455"/>
+  <line x1="470" y1="435" x2="470" y2="455"/>
+  <line x1="550" y1="435" x2="550" y2="455"/>
+</g>
+<text x="330" y="498" text-anchor="middle" fill="#58a6ff" style="font:700 18px 'Segoe UI',sans-serif">Rate:  0.185</text>
+<!-- Fault column header -->
+<text x="960" y="192" text-anchor="middle" fill="#f85149" style="font:700 14px sans-serif">Fault  Bearing</text>
+<!-- Fault raw signal -->
+<rect x="700" y="200" width="530" height="90" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<path fill="none" stroke="#f85149" stroke-width="2"
+  d="M 710,245 C 722,195 738,195 750,245 C 762,295 778,295 790,245 C 802,195 818,195 830,245 C 842,295 858,295 870,245 C 882,195 898,195 910,245 C 922,295 938,295 950,245 C 962,195 978,195 990,245 C 1002,295 1018,295 1030,245 C 1042,195 1058,195 1070,245 C 1082,295 1098,295 1110,245 C 1122,195 1138,195 1150,245 C 1162,295 1178,295 1190,245 C 1202,195 1218,195 1225,238"/>
+<!-- Fault delta (large, exceeds threshold often) -->
+<rect x="700" y="310" width="530" height="80" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<line x1="710" y1="350" x2="1222" y2="350" stroke="#1a2030" stroke-width="1"/>
+<path fill="none" stroke="#d29922" stroke-width="1.5" opacity=".7"
+  d="M 710,350 L 730,305 L 750,390 L 770,308 L 790,388 L 810,306 L 830,392 L 850,304 L 870,390 L 890,308 L 910,388 L 930,305 L 950,392 L 970,306 L 990,388 L 1010,308 L 1030,390 L 1050,305 L 1070,390 L 1090,308 L 1110,388 L 1130,306 L 1150,390 L 1170,306 L 1190,390 L 1210,350"/>
+<line x1="710" y1="335" x2="1222" y2="335" stroke="#d29922" stroke-width="1" stroke-dasharray="4 4" opacity=".5"/>
+<!-- Fault spikes (dense) -->
+<rect x="700" y="410" width="530" height="60" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<line x1="710" y1="455" x2="1222" y2="455" stroke="#21262d" stroke-width="1"/>
+<rect x="710" y="430" width="500" height="24" fill="url(#fsp4)"/>
+<text x="960" y="498" text-anchor="middle" fill="#f85149" style="font:700 18px 'Segoe UI',sans-serif">Rate:  0.854</text>
+<!-- Bottom ratio -->
+<text x="640" y="558" text-anchor="middle" fill="#3fb950" style="font:700 26px 'Segoe UI',sans-serif">4.6× spike rate difference → directly classifiable</text>
+</svg></div>
+
+<!-- ── SLIDE 5  Windowed vs Streaming ─────────────────────────────── -->
+<div class="slide"><svg viewBox="0 0 1280 720">
+<rect width="1280" height="720" fill="#0d1117"/>
+<defs><marker id="ar5" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+  <polygon points="0 0,10 3.5,0 7" fill="#58a6ff"/>
+</marker></defs>
+<text x="30" y="38" fill="#484f58" style="font:13px sans-serif">ANN Course · SNN Predictive Maintenance</text>
+<text x="640" y="78" text-anchor="middle" fill="#f0f6fc" style="font:700 40px 'Segoe UI',sans-serif">Windowed SNN  vs  Streaming SNN</text>
+<line x1="0" y1="92" x2="1280" y2="92" stroke="#21262d" stroke-width="1"/>
+<!-- LEFT: Windowed (deprecated) -->
+<rect x="40" y="112" width="540" height="50" rx="8" fill="#1f1010" stroke="#f85149" stroke-width="1.5"/>
+<text x="310" y="144" text-anchor="middle" fill="#f85149" style="font:700 16px sans-serif">❌  Windowed  (old approach)</text>
+<!-- Input buffer visualization -->
+<rect x="60" y="180" width="500" height="50" rx="6" fill="#0a0e14" stroke="#30363d" stroke-width="1"/>
+<g fill="#58a6ff" opacity=".5">
+  <rect x="65" y="188" width="28" height="34" rx="2"/><rect x="100" y="188" width="28" height="34" rx="2"/>
+  <rect x="135" y="188" width="28" height="34" rx="2"/><rect x="170" y="188" width="28" height="34" rx="2"/>
+  <rect x="205" y="188" width="28" height="34" rx="2"/><rect x="240" y="188" width="28" height="34" rx="2"/>
+  <rect x="275" y="188" width="28" height="34" rx="2"/><rect x="310" y="188" width="28" height="34" rx="2"/>
+  <text x="395" y="210" fill="#484f58" style="font:12px sans-serif">· · ·  128 samples</text>
+</g>
+<text x="310" y="252" text-anchor="middle" fill="#484f58" style="font:12px sans-serif">must wait for full window before inference</text>
+<!-- FC1 box: big (128 inputs) -->
+<rect x="120" y="270" width="380" height="70" rx="8" fill="#2a1010" stroke="#f85149" stroke-width="1.5"/>
+<text x="310" y="302" text-anchor="middle" fill="#f85149" style="font:700 16px sans-serif">FC1:  Linear(128 → 32)</text>
+<text x="310" y="324" text-anchor="middle" fill="#8b949e" style="font:13px sans-serif">WINDOW size baked into weight matrix</text>
+<!-- Problem callout -->
+<rect x="60" y="360" width="500" height="120" rx="8" fill="#1a0808" stroke="#f85149" stroke-width="1"/>
+<text x="80" y="388" fill="#f85149" style="font:700 14px sans-serif">Problems:</text>
+<text x="80" y="410" fill="#8b949e" style="font:13px sans-serif">• Changing window = retrain from scratch</text>
+<text x="80" y="432" fill="#8b949e" style="font:13px sans-serif">• Must accumulate 128 samples before any output</text>
+<text x="80" y="454" fill="#8b949e" style="font:13px sans-serif">• Window boundary artifacts (cross-window faults)</text>
+<!-- Parameters -->
+<rect x="120" y="500" width="380" height="55" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="310" y="527" text-anchor="middle" fill="#8b949e" style="font:14px sans-serif">Parameters:  128×32 + 32×2 = </text>
+<text x="310" y="547" text-anchor="middle" fill="#f85149" style="font:700 16px sans-serif">4,160  params  ·  16.25 KB</text>
+<!-- CENTER divider with VS -->
+<line x1="640" y1="105" x2="640" y2="620" stroke="#21262d" stroke-width="2"/>
+<circle cx="640" cy="370" r="30" fill="#161b22" stroke="#30363d" stroke-width="2"/>
+<text x="640" y="378" text-anchor="middle" fill="#8b949e" style="font:700 18px sans-serif">VS</text>
+<!-- RIGHT: Streaming (current) -->
+<rect x="700" y="112" width="540" height="50" rx="8" fill="#0f3d20" stroke="#3fb950" stroke-width="2"/>
+<text x="970" y="144" text-anchor="middle" fill="#3fb950" style="font:700 16px sans-serif">✓  Streaming  (this work)</text>
+<!-- Input: one spike -->
+<rect x="720" y="180" width="500" height="50" rx="6" fill="#0a0e14" stroke="#3fb950" stroke-width="1"/>
+<line x1="730" y1="210" x2="1210" y2="210" stroke="#21262d" stroke-width="1"/>
+<line x1="850" y1="190" x2="850" y2="210" stroke="#3fb950" stroke-width="2"/>
+<text x="970" y="207" fill="#3fb950" style="font:700 14px sans-serif">one spike per timestep</text>
+<text x="970" y="252" text-anchor="middle" fill="#484f58" style="font:12px sans-serif">instant output per sample</text>
+<!-- FC1 box: tiny (1 input) -->
+<rect x="780" y="270" width="380" height="70" rx="8" fill="#0f3d20" stroke="#3fb950" stroke-width="2"/>
+<text x="970" y="302" text-anchor="middle" fill="#3fb950" style="font:700 16px sans-serif">FC1:  Linear(1 → 32)</text>
+<text x="970" y="324" text-anchor="middle" fill="#8b949e" style="font:13px sans-serif">no window dependency, scalar input</text>
+<!-- mem persistent indicator -->
+<rect x="720" y="360" width="500" height="120" rx="8" fill="#082010" stroke="#3fb950" stroke-width="1"/>
+<text x="740" y="388" fill="#3fb950" style="font:700 14px sans-serif">Key Innovation:</text>
+<text x="740" y="412" fill="#8b949e" style="font:13px sans-serif">• mem₁ never reset between samples</text>
+<text x="740" y="434" fill="#8b949e" style="font:13px sans-serif">• Temporal context spans entire signal stream</text>
+<text x="740" y="456" fill="#8b949e" style="font:13px sans-serif">• Output every N steps (decision_interval=200)</text>
+<!-- Parameters -->
+<rect x="780" y="500" width="380" height="55" rx="6" fill="#0f3d20" stroke="#3fb950" stroke-width="2"/>
+<text x="970" y="527" text-anchor="middle" fill="#8b949e" style="font:14px sans-serif">Parameters:  32×1 + 32×2 = </text>
+<text x="970" y="547" text-anchor="middle" fill="#3fb950" style="font:700 16px sans-serif">97  params  ·  0.38 KB</text>
+<!-- Bottom comparison note -->
+<text x="640" y="645" text-anchor="middle" fill="#f0f6fc" style="font:700 16px 'Segoe UI',sans-serif">43× fewer parameters · truly real-time · no window coupling</text>
+</svg></div>
+
+<!-- ── SLIDE 6  Architecture ───────────────────────────────────────── -->
+<div class="slide"><svg viewBox="0 0 1280 720">
+<rect width="1280" height="720" fill="#0d1117"/>
+<defs><marker id="ar6" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+  <polygon points="0 0,10 3.5,0 7" fill="#58a6ff"/>
+</marker></defs>
+<text x="30" y="38" fill="#484f58" style="font:13px sans-serif">ANN Course · SNN Predictive Maintenance</text>
+<text x="640" y="78" text-anchor="middle" fill="#f0f6fc" style="font:700 40px 'Segoe UI',sans-serif">Network Architecture</text>
+<line x1="0" y1="92" x2="1280" y2="92" stroke="#21262d" stroke-width="1"/>
+<!-- Main equation at top -->
+<rect x="200" y="108" width="880" height="55" rx="8" fill="#161b22" stroke="#3fb950" stroke-width="1.5"/>
+<text x="640" y="143" text-anchor="middle" fill="#3fb950" style="font:700 18px 'Courier New',monospace">cur₁ = FC1(spike)  →  spk₁, mem₁ = LIF1(cur₁, mem₁)  →  logit += FC2(spk₁)</text>
+<!-- Architecture flow -->
+<!-- Box 1 -->
+<rect x="50" y="220" width="140" height="90" rx="10" fill="#161b22" stroke="#58a6ff" stroke-width="2"/>
+<text x="120" y="258" text-anchor="middle" fill="#8b949e" style="font:11px sans-serif">delta mod.</text>
+<text x="120" y="278" text-anchor="middle" fill="#58a6ff" style="font:700 16px sans-serif">spike(t)</text>
+<text x="120" y="298" text-anchor="middle" fill="#484f58" style="font:12px sans-serif">{0, 1} scalar</text>
+<text x="120" y="325" text-anchor="middle" fill="#484f58" style="font:11px sans-serif">every 5 ms</text>
+<line x1="192" y1="265" x2="228" y2="265" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar6)"/>
+<!-- Box 2: FC1 -->
+<rect x="230" y="210" width="160" height="130" rx="10" fill="#0f1f35" stroke="#58a6ff" stroke-width="2"/>
+<text x="310" y="246" text-anchor="middle" fill="#8b949e" style="font:11px sans-serif">FC1  (no bias)</text>
+<text x="310" y="270" text-anchor="middle" fill="#f0f6fc" style="font:700 16px sans-serif">Linear</text>
+<text x="310" y="292" text-anchor="middle" fill="#58a6ff" style="font:700 15px sans-serif">W₁ : [32,1]</text>
+<text x="310" y="314" text-anchor="middle" fill="#484f58" style="font:12px sans-serif">32 weights</text>
+<text x="310" y="352" text-anchor="middle" fill="#484f58" style="font:11px sans-serif">cur₁ = W₁ · spike</text>
+<line x1="392" y1="275" x2="428" y2="275" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar6)"/>
+<!-- Box 3: LIF1 -->
+<rect x="430" y="185" width="200" height="200" rx="10" fill="#082010" stroke="#3fb950" stroke-width="2.5"/>
+<text x="530" y="222" text-anchor="middle" fill="#8b949e" style="font:11px sans-serif">LIF1  (learned β)</text>
+<text x="530" y="248" text-anchor="middle" fill="#f0f6fc" style="font:700 16px sans-serif">Leaky LIF</text>
+<text x="530" y="272" text-anchor="middle" fill="#3fb950" style="font:13px 'Courier New',monospace">mem = β·mem + cur₁</text>
+<text x="530" y="294" text-anchor="middle" fill="#3fb950" style="font:13px 'Courier New',monospace">if mem ≥ θ: spike!</text>
+<text x="530" y="318" text-anchor="middle" fill="#3fb950" style="font:13px 'Courier New',monospace">  mem −= θ</text>
+<text x="530" y="358" text-anchor="middle" fill="#3fb950" style="font:700 13px sans-serif">mem NEVER RESET</text>
+<!-- 32 neuron dots -->
+<g fill="#3fb950" opacity=".5">
+  <circle cx="448" cy="400" r="3"/><circle cx="460" cy="400" r="3"/><circle cx="472" cy="400" r="3"/>
+  <circle cx="484" cy="400" r="3"/><circle cx="496" cy="400" r="3"/><circle cx="508" cy="400" r="3"/>
+  <circle cx="520" cy="400" r="3"/><circle cx="532" cy="400" r="3"/><circle cx="544" cy="400" r="3"/>
+  <circle cx="556" cy="400" r="3"/><circle cx="568" cy="400" r="3"/><circle cx="580" cy="400" r="3"/>
+</g>
+<text x="530" y="420" text-anchor="middle" fill="#484f58" style="font:11px sans-serif">32 hidden neurons</text>
+<line x1="632" y1="275" x2="668" y2="275" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar6)"/>
+<!-- Box 4: FC2 -->
+<rect x="670" y="210" width="160" height="130" rx="10" fill="#0f1f35" stroke="#58a6ff" stroke-width="2"/>
+<text x="750" y="246" text-anchor="middle" fill="#8b949e" style="font:11px sans-serif">FC2  (no bias)</text>
+<text x="750" y="270" text-anchor="middle" fill="#f0f6fc" style="font:700 16px sans-serif">Linear</text>
+<text x="750" y="292" text-anchor="middle" fill="#58a6ff" style="font:700 15px sans-serif">W₂ : [2,32]</text>
+<text x="750" y="314" text-anchor="middle" fill="#484f58" style="font:12px sans-serif">64 weights</text>
+<text x="750" y="352" text-anchor="middle" fill="#484f58" style="font:11px sans-serif">out = W₂ · spk₁</text>
+<line x1="832" y1="275" x2="868" y2="275" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar6)"/>
+<!-- Box 5: Accumulate -->
+<rect x="870" y="220" width="160" height="110" rx="10" fill="#161b22" stroke="#d29922" stroke-width="2"/>
+<text x="950" y="256" text-anchor="middle" fill="#d29922" style="font:11px sans-serif">every timestep</text>
+<text x="950" y="278" text-anchor="middle" fill="#f0f6fc" style="font:700 16px sans-serif">logit +=</text>
+<text x="950" y="300" text-anchor="middle" fill="#d29922" style="font:700 15px sans-serif">out_acc</text>
+<text x="950" y="322" text-anchor="middle" fill="#484f58" style="font:12px sans-serif">rate coding</text>
+<line x1="1032" y1="275" x2="1068" y2="275" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar6)"/>
+<!-- Box 6: Decision -->
+<rect x="1070" y="210" width="180" height="130" rx="10" fill="#0f2a1a" stroke="#3fb950" stroke-width="2"/>
+<text x="1160" y="246" text-anchor="middle" fill="#8b949e" style="font:11px sans-serif">every 200 samples</text>
+<text x="1160" y="270" text-anchor="middle" fill="#f0f6fc" style="font:700 16px sans-serif">argmax</text>
+<rect x="1085" y="285" width="150" height="26" rx="4" fill="#3fb950" opacity=".2" stroke="#3fb950" stroke-width="1"/>
+<text x="1160" y="303" text-anchor="middle" fill="#3fb950" style="font:700 14px sans-serif">Normal</text>
+<rect x="1085" y="318" width="150" height="26" rx="4" fill="#f85149" opacity=".2" stroke="#f85149" stroke-width="1"/>
+<text x="1160" y="336" text-anchor="middle" fill="#f85149" style="font:700 14px sans-serif">Fault</text>
+<!-- β feedback loop annotation -->
+<path d="M 490,185 Q 490,155 530,145 Q 570,135 530,145" fill="none" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="4 3" opacity=".6"/>
+<text x="530" y="135" text-anchor="middle" fill="#3fb950" style="font:12px sans-serif">β: learned</text>
+<!-- Total params badge -->
+<rect x="430" y="450" width="420" height="60" rx="10" fill="#0f2a1a" stroke="#3fb950" stroke-width="2"/>
+<text x="640" y="476" text-anchor="middle" fill="#8b949e" style="font:13px sans-serif">Total parameters</text>
+<text x="640" y="498" text-anchor="middle" fill="#3fb950" style="font:700 22px 'Segoe UI',sans-serif">W₁(32) + W₂(64) + β(1) = 97  params</text>
+<!-- Forward pass pseudocode -->
+<rect x="50" y="530" width="1180" height="155" rx="10" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<text x="70" y="558" fill="#484f58" style="font:700 12px sans-serif">// Forward pass per timestep (C++ on ESP32):</text>
+<text x="70" y="578" fill="#3fb950" style="font:13px 'Courier New',monospace">spike = (|az - prev| &gt; θ) ? 1.0f : 0.0f;</text>
+<text x="70" y="598" fill="#58a6ff" style="font:13px 'Courier New',monospace">for (j=0..31): mem1[j] = β·mem1[j] + spike·W1[j];</text>
+<text x="70" y="618" fill="#f85149" style="font:13px 'Courier New',monospace">  if (mem1[j] &gt;= θ): { mem1[j]-=θ; out_acc+=W2[j]; spk_cnt++; }</text>
+<text x="70" y="638" fill="#d29922" style="font:13px 'Courier New',monospace">if (++dec_count &gt;= 200): { status = (out_acc[1]&lt;=out_acc[0]); reset_acc(); }</text>
+<text x="70" y="670" fill="#484f58" style="font:700 12px sans-serif">// No matrix multiply for input: binary spike × vector = conditional add</text>
+</svg></div>
+
+<!-- ── SLIDE 7  Surrogate Gradient ─────────────────────────────────── -->
+<div class="slide"><svg viewBox="0 0 1280 720">
+<rect width="1280" height="720" fill="#0d1117"/>
+<defs>
+  <marker id="ax7" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+    <polygon points="0 0,8 3,0 6" fill="#30363d"/>
+  </marker>
+</defs>
+<text x="30" y="38" fill="#484f58" style="font:13px sans-serif">ANN Course · SNN Predictive Maintenance</text>
+<text x="640" y="78" text-anchor="middle" fill="#f0f6fc" style="font:700 40px 'Segoe UI',sans-serif">Surrogate Gradient</text>
+<line x1="0" y1="92" x2="1280" y2="92" stroke="#21262d" stroke-width="1"/>
+<!-- Problem statement -->
+<rect x="200" y="108" width="880" height="55" rx="8" fill="#1a0808" stroke="#f85149" stroke-width="1.5"/>
+<text x="640" y="143" text-anchor="middle" fill="#f85149" style="font:700 17px sans-serif">Standard backprop fails: ∂H(mem−θ)/∂mem = 0 everywhere except at threshold (∞)</text>
+<!-- LEFT: Forward pass — Heaviside step function -->
+<text x="310" y="200" text-anchor="middle" fill="#8b949e" style="font:700 15px sans-serif">Forward Pass</text>
+<text x="310" y="222" text-anchor="middle" fill="#58a6ff" style="font:13px 'Courier New',sans-serif">spike = H(mem − θ)</text>
+<!-- Chart area -->
+<line x1="110" y1="490" x2="560" y2="490" stroke="#30363d" stroke-width="1.5" marker-end="url(#ax7)"/>
+<line x1="335" y1="560" x2="335" y2="235" stroke="#30363d" stroke-width="1.5" marker-end="url(#ax7)"/>
+<text x="568" y="494" fill="#484f58" style="font:12px sans-serif">mem−θ</text>
+<text x="350" y="234" fill="#484f58" style="font:12px sans-serif">H(x)</text>
+<text x="340" y="490" fill="#484f58" style="font:11px sans-serif">0</text>
+<text x="310" y="375" fill="#484f58" style="font:11px sans-serif" text-anchor="end">0.5</text>
+<text x="310" y="260" fill="#484f58" style="font:11px sans-serif" text-anchor="end">1</text>
+<!-- Horizontal reference lines -->
+<line x1="115" y1="260" x2="555" y2="260" stroke="#21262d" stroke-width="1" stroke-dasharray="3 4"/>
+<line x1="115" y1="375" x2="555" y2="375" stroke="#21262d" stroke-width="1" stroke-dasharray="3 4"/>
+<!-- Step function path -->
+<path fill="none" stroke="#d29922" stroke-width="3"
+  d="M 115,490 L 335,490 L 335,260 L 555,260"/>
+<!-- Vertical dash at threshold -->
+<line x1="335" y1="260" x2="335" y2="490" stroke="#f85149" stroke-width="1.5" stroke-dasharray="4 3" opacity=".6"/>
+<!-- Gradient = 0 annotations -->
+<text x="200" y="478" text-anchor="middle" fill="#f85149" style="font:12px sans-serif">grad = 0</text>
+<text x="460" y="248" text-anchor="middle" fill="#f85149" style="font:12px sans-serif">grad = 0</text>
+<text x="355" y="358" fill="#f85149" style="font:12px sans-serif">grad = ∞</text>
+<!-- RIGHT: Backward pass — Surrogate gradient -->
+<text x="970" y="200" text-anchor="middle" fill="#8b949e" style="font:700 15px sans-serif">Backward Pass  (Surrogate)</text>
+<text x="970" y="222" text-anchor="middle" fill="#3fb950" style="font:13px 'Courier New',sans-serif">grad ≈ σ'(slope · (mem−θ))</text>
+<line x1="770" y1="490" x2="1220" y2="490" stroke="#30363d" stroke-width="1.5" marker-end="url(#ax7)"/>
+<line x1="995" y1="560" x2="995" y2="235" stroke="#30363d" stroke-width="1.5" marker-end="url(#ax7)"/>
+<text x="1228" y="494" fill="#484f58" style="font:12px sans-serif">mem−θ</text>
+<text x="1010" y="234" fill="#484f58" style="font:12px sans-serif">σ'(x)</text>
+<line x1="775" y1="260" x2="1215" y2="260" stroke="#21262d" stroke-width="1" stroke-dasharray="3 4"/>
+<text x="970" y="252" text-anchor="end" fill="#484f58" style="font:11px sans-serif">peak</text>
+<!-- Bell curve (surrogate gradient) -->
+<path fill="none" stroke="#3fb950" stroke-width="3"
+  d="M 775,488 Q 840,480 890,462 Q 940,440 970,380 Q 983,335 995,260 Q 1007,335 1020,380 Q 1050,440 1100,462 Q 1150,480 1215,488"/>
+<!-- area fill under bell -->
+<path fill="#3fb950" fill-opacity=".1"
+  d="M 775,490 Q 840,482 890,464 Q 940,442 970,382 Q 983,337 995,262 Q 1007,337 1020,382 Q 1050,442 1100,464 Q 1150,482 1215,490 Z"/>
+<line x1="995" y1="260" x2="995" y2="490" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="4 3" opacity=".5"/>
+<text x="1010" y="358" fill="#3fb950" style="font:12px sans-serif">smooth</text>
+<text x="1010" y="374" fill="#3fb950" style="font:12px sans-serif">everywhere</text>
+<!-- Connection arrow + substitution label -->
+<path d="M 575,375 Q 640,375 665,375" fill="none" stroke="#8b949e" stroke-width="2" marker-end="url(#ax7)"/>
+<rect x="590" y="348" width="75" height="42" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="628" y="366" text-anchor="middle" fill="#8b949e" style="font:11px sans-serif">replace</text>
+<text x="628" y="382" text-anchor="middle" fill="#8b949e" style="font:11px sans-serif">gradient</text>
+<!-- Bottom formula -->
+<rect x="200" y="560" width="880" height="80" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="640" y="593" text-anchor="middle" fill="#8b949e" style="font:14px sans-serif">Fast sigmoid surrogate  (slope = 5)</text>
+<text x="640" y="625" text-anchor="middle" fill="#3fb950" style="font:700 17px 'Courier New',monospace">σ'(x) = slope / (2 · (1 + |slope · x|)²)    slope=5  →  peak at x=0</text>
+</svg></div>
+
+<!-- ── SLIDE 8  TBPTT ──────────────────────────────────────────────── -->
+<div class="slide"><svg viewBox="0 0 1280 720">
+<rect width="1280" height="720" fill="#0d1117"/>
+<text x="30" y="38" fill="#484f58" style="font:13px sans-serif">ANN Course · SNN Predictive Maintenance</text>
+<text x="640" y="78" text-anchor="middle" fill="#f0f6fc" style="font:700 40px 'Segoe UI',sans-serif">Truncated BPTT  (TBPTT)</text>
+<line x1="0" y1="92" x2="1280" y2="92" stroke="#21262d" stroke-width="1"/>
+<!-- Problem -->
+<rect x="50" y="110" width="580" height="55" rx="8" fill="#1a0808" stroke="#f85149" stroke-width="1"/>
+<text x="340" y="143" text-anchor="middle" fill="#f85149" style="font:700 14px sans-serif">Full BPTT on streaming data: O(T) memory for T=120,000 timesteps → impractical</text>
+<!-- Solution -->
+<rect x="650" y="110" width="580" height="55" rx="8" fill="#082010" stroke="#3fb950" stroke-width="1.5"/>
+<text x="940" y="143" text-anchor="middle" fill="#3fb950" style="font:700 14px sans-serif">TBPTT: unroll only C=256 steps · detach gradient at chunk boundary</text>
+<!-- Timeline diagram -->
+<text x="640" y="200" text-anchor="middle" fill="#8b949e" style="font:700 14px sans-serif">Training: Streaming Signal Chunked into T=256 Segments</text>
+<!-- Full signal bar -->
+<rect x="60" y="215" width="1160" height="30" rx="4" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="640" y="235" text-anchor="middle" fill="#484f58" style="font:12px sans-serif">Full signal   (120,000+ timesteps)</text>
+<!-- Chunks (alternating colors) -->
+<g>
+  <rect x="60" y="265" width="148" height="55" rx="6" fill="#0f1f35" stroke="#58a6ff" stroke-width="2"/>
+  <text x="134" y="290" text-anchor="middle" fill="#58a6ff" style="font:700 12px sans-serif">chunk 1</text>
+  <text x="134" y="307" text-anchor="middle" fill="#484f58" style="font:11px sans-serif">T=256</text>
+</g>
+<g>
+  <rect x="218" y="265" width="148" height="55" rx="6" fill="#0f2a1a" stroke="#3fb950" stroke-width="2"/>
+  <text x="292" y="290" text-anchor="middle" fill="#3fb950" style="font:700 12px sans-serif">chunk 2</text>
+  <text x="292" y="307" text-anchor="middle" fill="#484f58" style="font:11px sans-serif">T=256</text>
+</g>
+<g>
+  <rect x="376" y="265" width="148" height="55" rx="6" fill="#0f1f35" stroke="#58a6ff" stroke-width="2"/>
+  <text x="450" y="290" text-anchor="middle" fill="#58a6ff" style="font:700 12px sans-serif">chunk 3</text>
+  <text x="450" y="307" text-anchor="middle" fill="#484f58" style="font:11px sans-serif">T=256</text>
+</g>
+<g>
+  <rect x="534" y="265" width="148" height="55" rx="6" fill="#0f2a1a" stroke="#3fb950" stroke-width="2"/>
+  <text x="608" y="290" text-anchor="middle" fill="#3fb950" style="font:700 12px sans-serif">chunk 4</text>
+  <text x="608" y="307" text-anchor="middle" fill="#484f58" style="font:11px sans-serif">T=256</text>
+</g>
+<text x="750" y="296" fill="#484f58" style="font:16px sans-serif">···</text>
+<g>
+  <rect x="820" y="265" width="200" height="55" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="920" y="296" text-anchor="middle" fill="#484f58" style="font:12px sans-serif">1425 chunks total</text>
+</g>
+<!-- Gradient flow arrows (within chunk) -->
+<defs><marker id="grad" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+  <polygon points="0 0,8 3,0 6" fill="#3fb950"/>
+</marker></defs>
+<g stroke="#3fb950" stroke-width="1.5" opacity=".7">
+  <line x1="134" y1="265" x2="134" y2="235" marker-end="url(#grad)"/>
+  <line x1="292" y1="265" x2="292" y2="235" marker-end="url(#grad)"/>
+  <line x1="450" y1="265" x2="450" y2="235" marker-end="url(#grad)"/>
+  <line x1="608" y1="265" x2="608" y2="235" marker-end="url(#grad)"/>
+</g>
+<text x="134" y="220" text-anchor="middle" fill="#3fb950" style="font:11px sans-serif">∂L/∂W</text>
+<text x="292" y="220" text-anchor="middle" fill="#3fb950" style="font:11px sans-serif">∂L/∂W</text>
+<!-- detach annotations at boundaries -->
+<defs><marker id="red8" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+  <polygon points="0 0,8 3,0 6" fill="#f85149"/>
+</marker></defs>
+<line x1="214" y1="265" x2="222" y2="265" stroke="#f85149" stroke-width="2.5" stroke-dasharray="3 2" opacity=".8"/>
+<line x1="372" y1="265" x2="380" y2="265" stroke="#f85149" stroke-width="2.5" stroke-dasharray="3 2" opacity=".8"/>
+<text x="218" y="258" text-anchor="middle" fill="#f85149" style="font:10px sans-serif">✂ detach</text>
+<text x="376" y="258" text-anchor="middle" fill="#f85149" style="font:10px sans-serif">✂ detach</text>
+<!-- mem₁ persistent arrow (below chunks) -->
+<path d="M 60,340 L 1070,340" fill="none" stroke="#58a6ff" stroke-width="2.5" stroke-dasharray="8 4" marker-end="url(#ar6)"/>
+<defs><marker id="ar6b" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+  <polygon points="0 0,10 3.5,0 7" fill="#58a6ff"/>
+</marker></defs>
+<rect x="60" y="353" width="120" height="30" rx="6" fill="#0f1f35" stroke="#58a6ff" stroke-width="1.5"/>
+<text x="120" y="373" text-anchor="middle" fill="#58a6ff" style="font:700 13px sans-serif">mem₁ persists</text>
+<text x="640" y="373" text-anchor="middle" fill="#58a6ff" style="font:12px sans-serif">→  carries temporal context across ALL chunks during inference</text>
+<!-- Code snippet -->
+<rect x="60" y="400" width="600" height="170" rx="10" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<text x="80" y="428" fill="#484f58" style="font:700 12px sans-serif">Training code (Python / snnTorch):</text>
+<text x="80" y="452" fill="#3fb950" style="font:13px 'Courier New',monospace">for chunk in chunks:</text>
+<text x="80" y="472" fill="#8b949e" style="font:13px 'Courier New',monospace">  mem1 = mem1.detach()  # ← stop gradient</text>
+<text x="80" y="492" fill="#58a6ff" style="font:13px 'Courier New',monospace">  out, mem1 = model(chunk, mem1)</text>
+<text x="80" y="512" fill="#d29922" style="font:13px 'Courier New',monospace">  loss = criterion(out, label)</text>
+<text x="80" y="532" fill="#3fb950" style="font:13px 'Courier New',monospace">  loss.backward(); optimizer.step()</text>
+<!-- Trade-off box -->
+<rect x="700" y="400" width="540" height="170" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="970" y="428" text-anchor="middle" fill="#d29922" style="font:700 14px sans-serif">Trade-offs</text>
+<text x="720" y="456" fill="#3fb950" style="font:13px sans-serif">✓  Memory: O(C) not O(T)   [256 vs 120,000]</text>
+<text x="720" y="482" fill="#3fb950" style="font:13px sans-serif">✓  Stable training for long sequences</text>
+<text x="720" y="508" fill="#f85149" style="font:13px sans-serif">✗  Loses dependencies &gt; 256 steps</text>
+<text x="720" y="534" fill="#8b949e" style="font:13px sans-serif">   (OK here: fault signal is periodic, local)</text>
+<text x="720" y="558" fill="#58a6ff" style="font:13px sans-serif">→  mem₁ bridges long-range context at infer.</text>
+</svg></div>
+
+<!-- ── SLIDE 9  Results ─────────────────────────────────────────────── -->
+<div class="slide"><svg viewBox="0 0 1280 720">
+<rect width="1280" height="720" fill="#0d1117"/>
+<defs><marker id="lax9" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+  <polygon points="0 0,8 3,0 6" fill="#30363d"/>
+</marker></defs>
+<text x="30" y="38" fill="#484f58" style="font:13px sans-serif">ANN Course · SNN Predictive Maintenance</text>
+<text x="640" y="78" text-anchor="middle" fill="#f0f6fc" style="font:700 40px 'Segoe UI',sans-serif">Training &amp; Evaluation Results</text>
+<line x1="0" y1="92" x2="1280" y2="92" stroke="#21262d" stroke-width="1"/>
+<!-- Loss curve -->
+<rect x="60" y="118" width="560" height="540" rx="12" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<text x="340" y="152" text-anchor="middle" fill="#8b949e" style="font:700 15px sans-serif">Loss Curve  (TBPTT, Cross-Entropy)</text>
+<line x1="140" y1="540" x2="590" y2="540" stroke="#30363d" stroke-width="1.5" marker-end="url(#lax9)"/>
+<line x1="140" y1="540" x2="140" y2="175" stroke="#30363d" stroke-width="1.5" marker-end="url(#lax9)"/>
+<line x1="140" y1="357" x2="590" y2="357" stroke="#1a2030" stroke-width="1" stroke-dasharray="4 4"/>
+<line x1="140" y1="250" x2="590" y2="250" stroke="#1a2030" stroke-width="1" stroke-dasharray="4 4"/>
+<text x="128" y="361" text-anchor="end" fill="#484f58" style="font:11px sans-serif">0.8</text>
+<text x="128" y="254" text-anchor="end" fill="#484f58" style="font:11px sans-serif">1.4</text>
+<text x="128" y="544" text-anchor="end" fill="#484f58" style="font:11px sans-serif">0</text>
+<text x="175" y="556" text-anchor="middle" fill="#484f58" style="font:11px sans-serif">1</text>
+<text x="289" y="556" text-anchor="middle" fill="#484f58" style="font:11px sans-serif">2</text>
+<text x="403" y="556" text-anchor="middle" fill="#484f58" style="font:11px sans-serif">3</text>
+<text x="517" y="556" text-anchor="middle" fill="#484f58" style="font:11px sans-serif">4</text>
+<text x="575" y="556" text-anchor="middle" fill="#484f58" style="font:11px sans-serif">5</text>
+<text x="365" y="572" text-anchor="middle" fill="#484f58" style="font:12px sans-serif">Epoch</text>
+<polyline fill="none" stroke="#3fb950" stroke-width="2.5" points="175,333 289,470 403,527 517,539 575,540"/>
+<circle cx="175" cy="333" r="5" fill="#3fb950"/>
+<circle cx="289" cy="470" r="5" fill="#3fb950"/>
+<circle cx="403" cy="527" r="5" fill="#3fb950"/>
+<circle cx="517" cy="539" r="5" fill="#3fb950"/>
+<circle cx="575" cy="540" r="5" fill="#3fb950"/>
+<text x="175" y="320" text-anchor="middle" fill="#8b949e" style="font:11px sans-serif">1.47</text>
+<text x="289" y="457" text-anchor="middle" fill="#8b949e" style="font:11px sans-serif">0.50</text>
+<text x="403" y="514" text-anchor="middle" fill="#8b949e" style="font:11px sans-serif">0.09</text>
+<text x="575" y="524" text-anchor="middle" fill="#8b949e" style="font:11px sans-serif">≈0</text>
+<!-- RIGHT: Results -->
+<circle cx="980" cy="340" r="195" fill="#0f2a1a" stroke="#3fb950" stroke-width="3"/>
+<text x="980" y="288" text-anchor="middle" fill="#3fb950" style="font:700 78px 'Segoe UI',sans-serif">100%</text>
+<text x="980" y="353" text-anchor="middle" fill="#f0f6fc" style="font:700 22px 'Segoe UI',sans-serif">Test Accuracy</text>
+<text x="980" y="393" text-anchor="middle" fill="#8b949e" style="font:16px sans-serif">5 epochs · 285 chunks</text>
+<text x="980" y="420" text-anchor="middle" fill="#58a6ff" style="font:14px sans-serif">Early stop not triggered</text>
+<rect x="700" y="560" width="540" height="90" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="970" y="592" text-anchor="middle" fill="#3fb950" style="font:700 14px sans-serif">Fault:   P=1.00  R=1.00  F1=1.00  (102 chunks)</text>
+<text x="970" y="616" text-anchor="middle" fill="#58a6ff" style="font:700 14px sans-serif">Normal: P=1.00  R=1.00  F1=1.00  (183 chunks)</text>
+<text x="970" y="638" text-anchor="middle" fill="#8b949e" style="font:13px sans-serif">Surrogate gradient + TBPTT + LIF persistence</text>
+</svg></div>
+
+<!-- ── SLIDE 10  Edge Deployment ──────────────────────────────────── -->
+<div class="slide"><svg viewBox="0 0 1280 720">
+<rect width="1280" height="720" fill="#0d1117"/>
+<text x="30" y="38" fill="#484f58" style="font:13px sans-serif">ANN Course · SNN Predictive Maintenance</text>
+<text x="640" y="78" text-anchor="middle" fill="#f0f6fc" style="font:700 40px 'Segoe UI',sans-serif">Edge Deployment — ESP32</text>
+<line x1="0" y1="92" x2="1280" y2="92" stroke="#21262d" stroke-width="1"/>
+<!-- ESP32 board (simplified PCB) -->
+<rect x="60" y="140" width="300" height="460" rx="10" fill="#0a1a0a" stroke="#3fb950" stroke-width="2"/>
+<text x="210" y="170" text-anchor="middle" fill="#3fb950" style="font:700 14px sans-serif">ESP32 NodeMCU-32S</text>
+<!-- Chip in center -->
+<rect x="130" y="210" width="160" height="120" rx="4" fill="#161b22" stroke="#484f58" stroke-width="1"/>
+<text x="210" y="265" text-anchor="middle" fill="#8b949e" style="font:700 12px sans-serif">Xtensa LX6</text>
+<text x="210" y="283" text-anchor="middle" fill="#484f58" style="font:11px sans-serif">240 MHz · 520 KB RAM</text>
+<text x="210" y="300" text-anchor="middle" fill="#58a6ff" style="font:11px sans-serif">Flash: 4 MB (snn_weights.h)</text>
+<!-- MPU6050 sensor -->
+<rect x="100" y="360" width="90" height="55" rx="4" fill="#1a1a2a" stroke="#58a6ff" stroke-width="1.5"/>
+<text x="145" y="385" text-anchor="middle" fill="#58a6ff" style="font:700 11px sans-serif">MPU6050</text>
+<text x="145" y="400" text-anchor="middle" fill="#484f58" style="font:10px sans-serif">I2C · 200 Hz</text>
+<!-- LEDs -->
+<rect x="240" y="360" width="80" height="55" rx="4" fill="#1a1a0a" stroke="#d29922" stroke-width="1.5"/>
+<circle cx="258" cy="378" r="6" fill="#3fb950" opacity=".8"/>
+<circle cx="278" cy="378" r="6" fill="#f85149" opacity=".8"/>
+<circle cx="298" cy="378" r="6" fill="#58a6ff" opacity=".6"/>
+<text x="280" y="403" text-anchor="middle" fill="#d29922" style="font:10px sans-serif">Status LEDs</text>
+<!-- Serial port -->
+<rect x="130" y="445" width="160" height="40" rx="4" fill="#1a1010" stroke="#8b949e" stroke-width="1"/>
+<text x="210" y="470" text-anchor="middle" fill="#8b949e" style="font:11px sans-serif">Serial 115200 → Dashboard</text>
+<!-- LED states callout -->
+<rect x="60" y="620" width="300" height="80" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<circle cx="85" cy="645" r="6" fill="#3fb950"/>
+<text x="100" y="650" fill="#8b949e" style="font:12px sans-serif">Green = Normal</text>
+<circle cx="85" cy="673" r="6" fill="#f85149"/>
+<text x="100" y="678" fill="#8b949e" style="font:12px sans-serif">Red flash = Fault detected</text>
+<!-- Code snippet (right) -->
+<rect x="400" y="128" width="840" height="550" rx="10" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<text x="420" y="156" fill="#484f58" style="font:700 13px sans-serif">// firmware/src/main.cpp  (INFERENCE_MODE, compiled with -DINFERENCE_MODE)</text>
+<text x="420" y="182" fill="#8b949e" style="font:12px 'Courier New',monospace">static float  mem1[SNN_HIDDEN] = {};  // ← persistent, never reset</text>
+<text x="420" y="202" fill="#8b949e" style="font:12px 'Courier New',monospace">static float  out_acc[2]       = {};  // fault / normal logit sum</text>
+<text x="420" y="228" fill="#484f58" style="font:12px 'Courier New',monospace">void loop() &#123;</text>
+<text x="420" y="250" fill="#58a6ff" style="font:12px 'Courier New',monospace">  // ─ read MPU6050 at 200 Hz ─</text>
+<text x="420" y="270" fill="#8b949e" style="font:12px 'Courier New',monospace">  float az = mpu.getAccelZ();</text>
+<text x="420" y="296" fill="#58a6ff" style="font:12px 'Courier New',monospace">  // ─ delta encode ─</text>
+<text x="420" y="316" fill="#d29922" style="font:12px 'Courier New',monospace">  float spike = (|az - prev| &gt; SNN_DELTA_THRESH) ? 1.0f : 0.0f;</text>
+<text x="420" y="342" fill="#58a6ff" style="font:12px 'Courier New',monospace">  // ─ FC1 + LIF1: mem1 never zeroed ─</text>
+<text x="420" y="362" fill="#3fb950" style="font:12px 'Courier New',monospace">  for (int j=0; j&lt;SNN_HIDDEN; j++) &#123;</text>
+<text x="420" y="382" fill="#3fb950" style="font:12px 'Courier New',monospace">    mem1[j] = SNN_BETA1 * mem1[j] + spike * SNN_W1[j];</text>
+<text x="420" y="402" fill="#3fb950" style="font:12px 'Courier New',monospace">    if (mem1[j] &gt;= SNN_THRESH1) &#123;</text>
+<text x="420" y="422" fill="#3fb950" style="font:12px 'Courier New',monospace">      mem1[j] -= SNN_THRESH1;        // soft reset</text>
+<text x="420" y="442" fill="#f85149" style="font:12px 'Courier New',monospace">      out_acc[0] += SNN_W2[0*HIDDEN+j]; // fault logit</text>
+<text x="420" y="462" fill="#58a6ff" style="font:12px 'Courier New',monospace">      out_acc[1] += SNN_W2[1*HIDDEN+j]; // normal logit</text>
+<text x="420" y="482" fill="#3fb950" style="font:12px 'Courier New',monospace">    &#125;</text>
+<text x="420" y="502" fill="#3fb950" style="font:12px 'Courier New',monospace">  &#125;</text>
+<text x="420" y="528" fill="#58a6ff" style="font:12px 'Courier New',monospace">  // ─ classify every 200 samples (~1 second) ─</text>
+<text x="420" y="548" fill="#d29922" style="font:12px 'Courier New',monospace">  if (++dec_count &gt;= SNN_DECISION_INTERVAL) &#123;</text>
+<text x="420" y="568" fill="#f85149" style="font:12px 'Courier New',monospace">    g_status = (out_acc[1] &lt;= out_acc[0]) ? 1u : 0u; // 1=fault</text>
+<text x="420" y="588" fill="#d29922" style="font:12px 'Courier New',monospace">    Serial.print("INF,..."); reset_acc(); &#125;</text>
+<text x="420" y="608" fill="#484f58" style="font:12px 'Courier New',monospace">&#125;</text>
+<text x="420" y="648" fill="#484f58" style="font:700 12px sans-serif">// Model footprint: W1[32] + W2[64] + β(1) = 97 floats = 0.38 KB</text>
+<text x="420" y="666" fill="#484f58" style="font:700 12px sans-serif">// No matrix multiply: binary spike × vector = conditional add only</text>
+</svg></div>
+
+<!-- ── SLIDE 11  Summary Table ─────────────────────────────────────── -->
+<div class="slide"><svg viewBox="0 0 1280 720">
+<rect width="1280" height="720" fill="#0d1117"/>
+<text x="30" y="38" fill="#484f58" style="font:13px sans-serif">ANN Course · SNN Predictive Maintenance</text>
+<text x="640" y="78" text-anchor="middle" fill="#f0f6fc" style="font:700 40px 'Segoe UI',sans-serif">ANN vs SNN — Full Comparison</text>
+<line x1="0" y1="92" x2="1280" y2="92" stroke="#21262d" stroke-width="1"/>
+<!-- Table header -->
+<rect x="40" y="112" width="270" height="50" rx="6" fill="#161b22" stroke="#21262d" stroke-width="1"/>
+<rect x="320" y="112" width="430" height="50" rx="6" fill="#1f1000" stroke="#d29922" stroke-width="1.5"/>
+<rect x="760" y="112" width="480" height="50" rx="6" fill="#0f2a1a" stroke="#3fb950" stroke-width="2"/>
+<text x="175" y="144" text-anchor="middle" fill="#8b949e" style="font:700 15px sans-serif">Property</text>
+<text x="535" y="144" text-anchor="middle" fill="#d29922" style="font:700 15px sans-serif">Traditional ANN (MLP)</text>
+<text x="1000" y="144" text-anchor="middle" fill="#3fb950" style="font:700 15px sans-serif">Streaming SNN (this work)</text>
+<!-- Rows -->
+<!-- row 1: Activation -->
+<rect x="40" y="172" width="270" height="56" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<text x="175" y="206" text-anchor="middle" fill="#8b949e" style="font:700 14px sans-serif">Activation</text>
+<rect x="320" y="172" width="430" height="56" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<text x="535" y="206" text-anchor="middle" fill="#f0f6fc" style="font:700 14px sans-serif">float32  ∈ [0, 1]</text>
+<rect x="760" y="172" width="480" height="56" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<text x="1000" y="206" text-anchor="middle" fill="#3fb950" style="font:700 14px sans-serif">binary  {0, 1}  (spike / no spike)</text>
+<!-- row 2: FC1 input -->
+<rect x="40" y="238" width="270" height="56" rx="4" fill="#161b22" stroke="#21262d" stroke-width="1"/>
+<text x="175" y="272" text-anchor="middle" fill="#8b949e" style="font:700 14px sans-serif">FC1 input size</text>
+<rect x="320" y="238" width="430" height="56" rx="4" fill="#161b22" stroke="#21262d" stroke-width="1"/>
+<text x="535" y="272" text-anchor="middle" fill="#f85149" style="font:700 14px sans-serif">WINDOW = 128  (fixed window)</text>
+<rect x="760" y="238" width="480" height="56" rx="4" fill="#161b22" stroke="#21262d" stroke-width="1"/>
+<text x="1000" y="272" text-anchor="middle" fill="#3fb950" style="font:700 14px sans-serif">1  (one spike per timestep)</text>
+<!-- row 3: parameters -->
+<rect x="40" y="304" width="270" height="56" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<text x="175" y="338" text-anchor="middle" fill="#8b949e" style="font:700 14px sans-serif">Parameters</text>
+<rect x="320" y="304" width="430" height="56" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<text x="535" y="338" text-anchor="middle" fill="#f85149" style="font:700 14px sans-serif">128×32 + 32×2 = 4,160</text>
+<rect x="760" y="304" width="480" height="56" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<text x="1000" y="338" text-anchor="middle" fill="#3fb950" style="font:700 14px sans-serif">32 + 64 + 1 = 97</text>
+<!-- row 4: temporal memory -->
+<rect x="40" y="370" width="270" height="56" rx="4" fill="#161b22" stroke="#21262d" stroke-width="1"/>
+<text x="175" y="404" text-anchor="middle" fill="#8b949e" style="font:700 14px sans-serif">Temporal Memory</text>
+<rect x="320" y="370" width="430" height="56" rx="4" fill="#161b22" stroke="#21262d" stroke-width="1"/>
+<text x="535" y="404" text-anchor="middle" fill="#8b949e" style="font:700 14px sans-serif">none (per-window, stateless)</text>
+<rect x="760" y="370" width="480" height="56" rx="4" fill="#161b22" stroke="#21262d" stroke-width="1"/>
+<text x="1000" y="404" text-anchor="middle" fill="#3fb950" style="font:700 14px sans-serif">mem₁ persistent across all time</text>
+<!-- row 5: gradient -->
+<rect x="40" y="436" width="270" height="56" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<text x="175" y="470" text-anchor="middle" fill="#8b949e" style="font:700 14px sans-serif">Training</text>
+<rect x="320" y="436" width="430" height="56" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<text x="535" y="470" text-anchor="middle" fill="#8b949e" style="font:700 14px sans-serif">Standard BPTT (differentiable)</text>
+<rect x="760" y="436" width="480" height="56" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<text x="1000" y="470" text-anchor="middle" fill="#3fb950" style="font:700 14px sans-serif">Surrogate gradient + TBPTT</text>
+<!-- row 6: real-time -->
+<rect x="40" y="502" width="270" height="56" rx="4" fill="#161b22" stroke="#21262d" stroke-width="1"/>
+<text x="175" y="536" text-anchor="middle" fill="#8b949e" style="font:700 14px sans-serif">Real-time capable</text>
+<rect x="320" y="502" width="430" height="56" rx="4" fill="#161b22" stroke="#21262d" stroke-width="1"/>
+<text x="535" y="536" text-anchor="middle" fill="#f85149" style="font:700 14px sans-serif">windowed only (batch)</text>
+<rect x="760" y="502" width="480" height="56" rx="4" fill="#161b22" stroke="#21262d" stroke-width="1"/>
+<text x="1000" y="536" text-anchor="middle" fill="#3fb950" style="font:700 14px sans-serif">true streaming (per-sample)</text>
+<!-- row 7: accuracy -->
+<rect x="40" y="568" width="270" height="56" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<text x="175" y="602" text-anchor="middle" fill="#8b949e" style="font:700 14px sans-serif">Test Accuracy</text>
+<rect x="320" y="568" width="430" height="56" rx="4" fill="#0a0e14" stroke="#21262d" stroke-width="1"/>
+<text x="535" y="602" text-anchor="middle" fill="#8b949e" style="font:700 14px sans-serif">~99% (with 4160 params)</text>
+<rect x="760" y="568" width="480" height="56" rx="4" fill="#0f3d20" stroke="#3fb950" stroke-width="1.5"/>
+<text x="1000" y="602" text-anchor="middle" fill="#3fb950" style="font:700 14px sans-serif">100%  (with 97 params)</text>
+</svg></div>
+
+<!-- ── SLIDE 12  Conclusion ────────────────────────────────────────── -->
+<div class="slide"><svg viewBox="0 0 1280 720">
+<rect width="1280" height="720" fill="#0d1117"/>
+<defs><linearGradient id="cbg" x1="0" y1="0" x2="1" y2="0">
+  <stop offset="0%" stop-color="#3fb950" stop-opacity="0"/>
+  <stop offset="35%" stop-color="#3fb950" stop-opacity=".9"/>
+  <stop offset="65%" stop-color="#58a6ff" stop-opacity=".9"/>
+  <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+</linearGradient></defs>
+<rect width="1280" height="4" fill="url(#cbg)"/>
+<text x="30" y="38" fill="#484f58" style="font:13px sans-serif">ANN Course · SNN Predictive Maintenance</text>
+<text x="640" y="78" text-anchor="middle" fill="#f0f6fc" style="font:700 40px 'Segoe UI',sans-serif">Conclusion</text>
+<line x1="0" y1="92" x2="1280" y2="92" stroke="#21262d" stroke-width="1"/>
+<!-- ANN contributions (left) -->
+<text x="290" y="130" text-anchor="middle" fill="#3fb950" style="font:700 15px sans-serif">SNN Contributions</text>
+<g>
+  <rect x="70" y="152" width="30" height="30" rx="15" fill="#3fb950"/>
+  <text x="85" y="172" text-anchor="middle" fill="#0d1117" style="font:700 16px sans-serif">✓</text>
+</g>
+<text x="115" y="172" fill="#f0f6fc" style="font:700 17px sans-serif">LIF neuron: built-in temporal integration</text>
+<g>
+  <rect x="70" y="200" width="30" height="30" rx="15" fill="#3fb950"/>
+  <text x="85" y="220" text-anchor="middle" fill="#0d1117" style="font:700 16px sans-serif">✓</text>
+</g>
+<text x="115" y="220" fill="#f0f6fc" style="font:700 17px sans-serif">Surrogate gradient enables BPTT on spikes</text>
+<g>
+  <rect x="70" y="248" width="30" height="30" rx="15" fill="#3fb950"/>
+  <text x="85" y="268" text-anchor="middle" fill="#0d1117" style="font:700 16px sans-serif">✓</text>
+</g>
+<text x="115" y="268" fill="#f0f6fc" style="font:700 17px sans-serif">Streaming: one weight per hidden unit</text>
+<g>
+  <rect x="70" y="296" width="30" height="30" rx="15" fill="#3fb950"/>
+  <text x="85" y="316" text-anchor="middle" fill="#0d1117" style="font:700 16px sans-serif">✓</text>
+</g>
+<text x="115" y="316" fill="#f0f6fc" style="font:700 17px sans-serif">TBPTT: scalable training on long streams</text>
+<g>
+  <rect x="70" y="344" width="30" height="30" rx="15" fill="#3fb950"/>
+  <text x="85" y="364" text-anchor="middle" fill="#0d1117" style="font:700 16px sans-serif">✓</text>
+</g>
+<text x="115" y="364" fill="#f0f6fc" style="font:700 17px sans-serif">Edge deployment: 97 params in C on ESP32</text>
+<g>
+  <rect x="70" y="392" width="30" height="30" rx="15" fill="#3fb950"/>
+  <text x="85" y="412" text-anchor="middle" fill="#0d1117" style="font:700 16px sans-serif">✓</text>
+</g>
+<text x="115" y="412" fill="#f0f6fc" style="font:700 17px sans-serif">100% test accuracy on CWRU benchmark</text>
+<!-- Divider -->
+<line x1="620" y1="128" x2="620" y2="480" stroke="#21262d" stroke-width="1.5"/>
+<!-- Insights (right) -->
+<text x="950" y="130" text-anchor="middle" fill="#58a6ff" style="font:700 15px sans-serif">Key Insights</text>
+<g fill="#58a6ff"><polygon points="640,165 660,175 640,185"/></g>
+<text x="675" y="179" fill="#8b949e" style="font:700 16px sans-serif">Neuromorphic ≠ just biological</text>
+<text x="675" y="199" fill="#484f58" style="font:14px sans-serif">sparse spikes → real computational benefit</text>
+<g fill="#58a6ff"><polygon points="640,225 660,235 640,245"/></g>
+<text x="675" y="240" fill="#8b949e" style="font:700 16px sans-serif">Delta modulation as feature engineering</text>
+<text x="675" y="260" fill="#484f58" style="font:14px sans-serif">maps domain knowledge to spike rates</text>
+<g fill="#58a6ff"><polygon points="640,285 660,295 640,305"/></g>
+<text x="675" y="300" fill="#8b949e" style="font:700 16px sans-serif">Persistent state = temporal context</text>
+<text x="675" y="320" fill="#484f58" style="font:14px sans-serif">replaces explicit window or LSTM cell</text>
+<g fill="#58a6ff"><polygon points="640,345 660,355 640,365"/></g>
+<text x="675" y="360" fill="#8b949e" style="font:700 16px sans-serif">Soft reset preserves sub-threshold energy</text>
+<text x="675" y="380" fill="#484f58" style="font:14px sans-serif">more information than hard reset to zero</text>
+<!-- Bottom summary badge -->
+<rect x="80" y="500" width="1120" height="90" rx="14" fill="#0f2a1a" stroke="#3fb950" stroke-width="2"/>
+<text x="640" y="540" text-anchor="middle" fill="#3fb950" style="font:700 18px 'Segoe UI',sans-serif">Streaming SNN: neuromorphic principles yield practical efficiency gains</text>
+<text x="640" y="570" text-anchor="middle" fill="#8b949e" style="font:15px sans-serif">delta mod + LIF persistence + surrogate gradient = 97-param real-time fault detector</text>
+<text x="640" y="650" text-anchor="middle" fill="#484f58" style="font:14px sans-serif">12 / 12</text>
+</svg></div>
+
+</div><!-- /deck -->
+<div id="pn">1 / 12</div>
+<div id="hint">← → or click to navigate</div>
+<script>
+const slides=document.querySelectorAll('.slide');
+let cur=0;
+function go(n){
+  slides[cur].classList.remove('active');
+  cur=(n+slides.length)%slides.length;
+  slides[cur].classList.add('active');
+  document.getElementById('pn').textContent=(cur+1)+' / '+slides.length;
+}
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key==='ArrowDown'||e.key===' ')go(cur+1);
+  if(e.key==='ArrowLeft'||e.key==='ArrowUp')go(cur-1);
+});
+document.getElementById('deck').addEventListener('click',e=>{
+  if(e.clientX>window.innerWidth/2)go(cur+1);else go(cur-1);
+});
+</script>
+</body></html>
